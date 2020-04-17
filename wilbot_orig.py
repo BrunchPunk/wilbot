@@ -4,6 +4,9 @@ import asyncio
 import threading
 import time
 
+# Old version used to get used to the discord.py module
+# Can be ignored
+
 client = discord.Client()
 botspam_channel_ID = 573707326976950272
 cactus_enamel_ID = 417518570206003206
