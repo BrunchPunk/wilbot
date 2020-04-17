@@ -111,12 +111,6 @@ async def cleanupThreadFunction():
 async def flightRoutine(channel, user): 
     log("flightRoutine() - Enter")
     
-    # Functions used to check for user answers
-    # TODO - remove this it's dumb
-    def cancelCheck(checkMessage): 
-        # Make sure this was a message sent as a DM by the same user
-        return ((checkMessage.channel == channel) and (checkMessage.author == user))
-    
     def inputCheck(checkMessage): 
         # Make sure this was a message sent as a DM by the same user
         if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
@@ -138,7 +132,7 @@ async def flightRoutine(channel, user):
             log("flightRoutine() - User requested a flight while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a flight listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
-                userProvidedCancelMessage = await client.wait_for('message', check=cancelCheck, timeout=30.0)
+                userProvidedCancelMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
             except asyncio.TimeoutError: 
                 await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
                 return
