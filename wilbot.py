@@ -4,6 +4,7 @@ import threading
 import time
 import re
 from flight import *
+from datetime import time
 from datetime import datetime
 from datetime import timedelta
 from discord.ext import tasks
@@ -355,24 +356,105 @@ async def moveRoutine(channel, user):
         
         # Begin collecting the necessary information from the user
         await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please don't include any URLs in your answers. Answers that include them will be ignored.")
+            
+        # Variables storing the user's answers
+        playerName = "" 
+        villagerName = "" 
+        playerTime = ""
+        end_time = ""
+        extra = ""
         
-        # TODO - Collect necessary information
+        # Get the user's in game name
+        await channel.send("Alright, could you start by telling me your in game name in Animal Crossing?")
+            
+        try: 
+            log("moveRoutine() - Waiting for user to give a playerName")
+            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            playerName = str(userAnswer.content)
+        except asyncio.TimeoutError: 
+            log("moveRoutine() - User timed out providing playerName")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            return
         
-        # TODO - Create the move object
+        # Get the user's villager name
+        await channel.send("Next, could you tell me the name of the villager moving out?")
+            
+        try: 
+            log("moveRoutine() - Waiting for user to give an villagerName")
+            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            villagerName = str(userAnswer.content)
+        except asyncio.TimeoutError: 
+            log("moveRoutine() - User timed out providing villagerName")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            return
         
-        # TODO - Post the message        
+        # Get the current time on the user's island for determining Time Zone
+        await channel.send("Almost finished. What is the current in-game time on your island? Please use 24 hour time notation (e.g. 03:30 pm would be 15:30)")
+            
+        try: 
+            log("moveRoutine() - Waiting for user to give a time")
+            timeReceived = False
+            while not timeReceived: 
+                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                
+                # Make sure the input is a valid time
+                try: 
+                    splitTime = userAnswer.split(',')
+                    
+                    if len(splitTime) != 2: 
+                        await channel.send("Wuh-oh! Your time needs to include a ':'. Please try again")
+                    else: 
+                        playerTime = time(splitTime[0], splitTime[1])
+                        timeReceived = True
+                        
+                except ValueError: 
+                    await channel.send("Wuh-oh! Your time needs to be a valid 24 hour time value (e.g. 03:30 pm would be 15:30). Please try again")
+                
+        except asyncio.TimeoutError: 
+            log("moveRoutine() - User timed out providing time")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            return
+         
+        # Calculate the time this listing should end based on the user's provided time
+        if playerTime.hour < 5: 
+            # can make a datetime for the same day at 5 am for the end time
+            timeDelta = datetime.time(5) - playerTime
+        else: 
+            # make a datetime for 5 am tomorrow from their time
+            timeDelta = (datetime.time.max - playerTime) + 5
+        
+        end_time = datetime.utcnow() + timeDelta
+        
+        # Get any additional information they want to provide
+        await channel.send("Next, could you tell me the name of the villager moving out?")
+            
+        try: 
+            log("moveRoutine() - Waiting for user to give an extra")
+            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            extra = str(userAnswer.content)
+        except asyncio.TimeoutError: 
+            log("moveRoutine() - User timed out providing extra")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            return
+        
+        # Create the move object
+        newMove = Move(playerName, villagerName, end_time, extra)
+        
         # Send the message
-        #listing_channel = client.get_channel(listing_channel_ID)
+        listing_channel = client.get_channel(listing_channel_ID)
+        listing_message = await listing_channel.send(newMove.generateMessage())
+        newMove.setMessage(listingMessage)
+        
+        # TODO - add image to listing
         #listingMessage = await listing_channel.send(content=newMove.generateMessage(), file=newMove.generateImage())
         #newMove.setMessage(listingMessage)
         
-        # TODO - Save move object to map
-        # Add the flight object to the map
-        #try: 
-            #moves_lock.acquire()
-            #moves[user.id] = newMove
-        #finally: 
-            #moves_lock.release()
+        # Add the move object to the map
+        try: 
+            moves_lock.acquire()
+            moves[user.id] = newMove
+        finally: 
+            moves_lock.release()
         
         
     finally: 
