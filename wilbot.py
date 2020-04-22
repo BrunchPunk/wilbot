@@ -4,6 +4,7 @@ import threading
 import time
 import re
 from flight import *
+from move import *
 from datetime import time
 from datetime import datetime
 from datetime import timedelta
@@ -78,12 +79,12 @@ async def cleanupThreadFunction():
     try: 
         moves_lock.acquire()
 
-        # Check each flight to see if it's expired and delete its message and 
+        # Check each move to see if it's expired and delete its message and 
         # remove it from the list if so. 
         keys_to_delete = []
         for userID in moves.keys(): 
             if moves[userID].checkExpired() == True: 
-                log("cleanupThreadFunction() - Cleaning up an expired flight")
+                log("cleanupThreadFunction() - Cleaning up an expired move")
                 
                 # Delete the message. 
                 await moves[userID].message.delete()
@@ -91,7 +92,7 @@ async def cleanupThreadFunction():
                 # Append key to list of those to delete after iterating
                 keys_to_delete.append(userID)
         
-        # Delete the flight objects from the dictionary
+        # Delete the move objects from the dictionary
         for key in keys_to_delete: 
             del moves[key]
             
@@ -405,9 +406,7 @@ async def moveRoutine(channel, user):
                         await channel.send("Wuh-oh! Your time needs to include a ':'. Please try again")
                     else: 
                         playerTime = datetime.utcnow()
-                        playerTime.hour = int(splitTime[0])
-                        playerTime.minute = int(splitTime[1])
-                        playerTime.second = 0
+                        playerTime = playerTime.replace(hour=int(splitTime[0]), minute=int(splitTime[1]), second=0)
                         timeReceived = True
                         
                 except ValueError: 
@@ -420,25 +419,22 @@ async def moveRoutine(channel, user):
          
         # Calculate the time this listing should end based on the user's provided time
         if playerTime.hour < 5: 
-            # can make a datetime for the same day at 5 am for the end time
+            # Can make a datetime for the same day at 5 am for the end time
             fiveAM = playerTime
-            fiveAM.hour = 5
-            fiveAM.minute = 0
-            fiveAM.second = 0
-            timeDelta = datetime.time(5) - playerTime
+            fiveAM = fiveAM.replace(hour=5, minute=0, second=0)
+            timeDelta = fiveAM - playerTime
         else: 
-            # make a datetime for 5 am tomorrow from their time
+            # Make a datetime for 5 am tomorrow from their time
             fiveAM = playerTime
-            fiveAM = fiveAM + timedelta(days=1)
-            fiveAM.hour = 5
-            fiveAM.minute = 0
-            fiveAM.second = 0
-            timeDelta = (datetime.time.max - playerTime) + 5
+            oneDay = timedelta(days=1)
+            fiveAMTomorrow = fiveAM + oneDay
+            fiveAMTomorrow = fiveAMTomorrow.replace(hour=5, minute=0, second=0)
+            timeDelta = fiveAMTomorrow - playerTime
         
         end_time = datetime.utcnow() + timeDelta
         
         # Get any additional information they want to provide
-        await channel.send("Next, could you tell me the name of the villager moving out?")
+        await channel.send("Great! Is there anything else you want to add to the listing? If not, just reply with 'none'")
             
         try: 
             log("moveRoutine() - Waiting for user to give an extra")
@@ -455,7 +451,7 @@ async def moveRoutine(channel, user):
         # Send the message
         listing_channel = client.get_channel(listing_channel_ID)
         listing_message = await listing_channel.send(newMove.generateMessage())
-        newMove.setMessage(listingMessage)
+        newMove.setMessage(listing_message)
         
         # TODO - add image to listing
         #listingMessage = await listing_channel.send(content=newMove.generateMessage(), file=newMove.generateImage())

@@ -34,7 +34,11 @@ class Move:
     # Use the information in this object to create a string that will be 
     # used in the listing message for this move
     def generateMessage(self): 
-        returnMessage = self.villager + " is moving out of " + self.owner + "'s island today. Send them a PM if you're interested in having them move into your town."
+        returnMessage = self.villager + " is moving out of " + self.owner + "'s island today." 
+        returnMessage = returnMessage + "Send them a PM if you're interested in having" + self.villager + " move into your town."
+        
+        if self.extra.lower() != "none": 
+            returnMessage += self.extra
         
         return returnMessage
     
