@@ -330,7 +330,7 @@ async def moveRoutine(channel, user):
         
         # Check if the user has an active move and offer to cancel the old one first
         if user.id in moves.keys(): 
-            log("moveRoutine() - User requested a flight while they already had one")
+            log("moveRoutine() - User requested a Move while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a move listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
                 userProvidedCancelMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
@@ -374,7 +374,7 @@ async def moveRoutine(channel, user):
             playerName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing playerName")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
         
         # Get the user's villager name
@@ -386,7 +386,7 @@ async def moveRoutine(channel, user):
             villagerName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing villagerName")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
         
         # Get the current time on the user's island for determining Time Zone
@@ -414,7 +414,7 @@ async def moveRoutine(channel, user):
                 
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing time")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
          
         # Calculate the time this listing should end based on the user's provided time
@@ -442,11 +442,28 @@ async def moveRoutine(channel, user):
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing extra")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
         
         # Create the move object
         newMove = Move(playerName, villagerName, end_time, extra)
+        
+        # Confirm that the message looks good to the user before posting
+        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\n Should I go ahead and post it? Answer 'yes' or 'no' please.")
+        try: 
+            userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
+        except asyncio.TimeoutError: 
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
+            return
+        else: 
+            # Check if the user replied with "yes"
+            if userProvidedConfirmationMessage.content.lower() != "yes": 
+                # Don't allow the user to create two listings
+                await channel.send("No worries, I won't post it. Message me 'move' if you'd like to try again.")
+                return
+        
+        # Success! We got all the necessary information and the user confirmed it looks good
+        await channel.send("Alright! I'll go ahead and list this move for you. You can always send me 'cancel' to have me take it down at any time.")
         
         # Send the message
         listing_channel = client.get_channel(listing_channel_ID)
