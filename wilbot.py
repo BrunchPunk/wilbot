@@ -399,12 +399,15 @@ async def moveRoutine(channel, user):
                 
                 # Make sure the input is a valid time
                 try: 
-                    splitTime = userAnswer.split(',')
+                    splitTime = userAnswer.content.split(':')
                     
                     if len(splitTime) != 2: 
                         await channel.send("Wuh-oh! Your time needs to include a ':'. Please try again")
                     else: 
-                        playerTime = time(splitTime[0], splitTime[1])
+                        playerTime = datetime.utcnow()
+                        playerTime.hour = int(splitTime[0])
+                        playerTime.minute = int(splitTime[1])
+                        playerTime.second = 0
                         timeReceived = True
                         
                 except ValueError: 
@@ -418,9 +421,18 @@ async def moveRoutine(channel, user):
         # Calculate the time this listing should end based on the user's provided time
         if playerTime.hour < 5: 
             # can make a datetime for the same day at 5 am for the end time
+            fiveAM = playerTime
+            fiveAM.hour = 5
+            fiveAM.minute = 0
+            fiveAM.second = 0
             timeDelta = datetime.time(5) - playerTime
         else: 
             # make a datetime for 5 am tomorrow from their time
+            fiveAM = playerTime
+            fiveAM = fiveAM + timedelta(days=1)
+            fiveAM.hour = 5
+            fiveAM.minute = 0
+            fiveAM.second = 0
             timeDelta = (datetime.time.max - playerTime) + 5
         
         end_time = datetime.utcnow() + timeDelta
