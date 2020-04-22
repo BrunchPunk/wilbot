@@ -268,7 +268,7 @@ async def flightRoutine(channel, user):
         newFlight = Flight(user.id, playerName, islandName, duration, end_time, dodoCode, extra)
         
         # Confirm that the message looks good to the user before posting
-        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\n Should I go ahead and post it? Answer 'yes' or 'no' please.")
+        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
         try: 
             userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
         except asyncio.TimeoutError: 
@@ -449,7 +449,7 @@ async def moveRoutine(channel, user):
         newMove = Move(playerName, villagerName, end_time, extra)
         
         # Confirm that the message looks good to the user before posting
-        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\n Should I go ahead and post it? Answer 'yes' or 'no' please.")
+        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
         try: 
             log("moveRoutine() - Waiting for user to confirm listing")
             userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
