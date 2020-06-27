@@ -1,10 +1,37 @@
 import discord
+import csv
 from datetime import datetime
 
 # Class representing a moving villager listing that a user requested. It's created
 # when the listing is successfully created and persists until its timer expires 
 # or it's manually closed. 
 class Move: 
+    
+    # Static Variables 
+    villagerImageMap = {}
+    
+    # Static Functions
+    # 
+    @staticmethod
+    def initVillagerImageMap(): 
+        reader = csv.reader(open('villager_image_map.csv'))
+        
+        Move.villagerImageMap = {}
+        for row in reader: 
+            villagerImageMap[row[0].lower()] = row[1]
+    
+    # Check if the provided villager name is in the dictionary of 
+    # valid villagers. Return true if so, false otherwise
+    @staticmethod
+    def checkVillager(villagerName): 
+        if not villagerImageMap: 
+            Move.initVillagerImageMap()
+        
+        if villagerName.lower() in Move.villagerImageMap.keys()
+            return True
+        else: 
+            return False
+    
     # Constructor for the Move class
     # Arguments: 
     #   owner: The discord.py User object ID for the user who requested the move
@@ -18,6 +45,9 @@ class Move:
         self.end_time = end_time
         self.extra = extra
         self.message = None
+        
+        if not Move.villagerImageMap: 
+            Move.initVillagerImageMap()
     
     # Set the message associated with this move listing
     def setMessage(self, message): 
@@ -38,10 +68,8 @@ class Move:
         returnMessage = returnMessage + "Send them a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 
-            returnMessage += self.extra
+            returnMessage  = returnMessage + self.extra + "\n"
+            
+        returnMessage = returnMessage + Move.villagerImageMap[self.villager.lower()]
         
         return returnMessage
-    
-    # Return a discord.File reference to an image for the specified villager
-    #def generateImage(self): 
-        # TODO 

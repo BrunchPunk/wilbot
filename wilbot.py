@@ -320,6 +320,19 @@ async def moveRoutine(channel, user):
             else: 
                 return True
     
+    # Function used to check for user villager answer
+    def inputVillagerCheck(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message does not contain a URLs
+            if checkForUrl(checkMessage.content) == True: 
+                return False
+            # Make sure they supplied a valid villager
+            if Move.checkVillager(checkMessage.content) == True: 
+                return True
+            else: 
+                # TODO - Should provide some feedback
+                return False
     try: 
         try: 
             active_sessions_lock.acquire()
@@ -381,8 +394,8 @@ async def moveRoutine(channel, user):
         await channel.send("Next, could you tell me the name of the villager moving out?")
             
         try: 
-            log("moveRoutine() - Waiting for user to give an villagerName")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            log("moveRoutine() - Waiting for user to give a villagerName")
+            userAnswer = await client.wait_for('message', check=inputVillagerCheck, timeout=30.0)
             villagerName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing villagerName")
