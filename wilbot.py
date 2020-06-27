@@ -320,19 +320,6 @@ async def moveRoutine(channel, user):
             else: 
                 return True
     
-    # Function used to check for user villager answer
-    def inputVillagerCheck(checkMessage): 
-        # Make sure this was a message sent as a DM by the same user
-        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
-            # Make sure the message does not contain a URLs
-            if checkForUrl(checkMessage.content) == True: 
-                return False
-            # Make sure they supplied a valid villager
-            if Move.checkVillager(checkMessage.content) == True: 
-                return True
-            else: 
-                # TODO - Should provide some feedback
-                return False
     try: 
         try: 
             active_sessions_lock.acquire()
@@ -395,8 +382,16 @@ async def moveRoutine(channel, user):
             
         try: 
             log("moveRoutine() - Waiting for user to give a villagerName")
-            userAnswer = await client.wait_for('message', check=inputVillagerCheck, timeout=30.0)
-            villagerName = str(userAnswer.content)
+            villagerReceived = False
+            while not villagerReceived: 
+                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                
+                if Move.checkVillager == False: 
+                    await channel.send("Wuh-oh! I couldn't find a villager with a name like that. Please try again")
+                else: 
+                    villagerName = str(userAnswer.content)
+                    villagerReceived = True
+                    
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing villagerName")
             await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
@@ -483,10 +478,6 @@ async def moveRoutine(channel, user):
         listing_channel = client.get_channel(listing_channel_ID)
         listing_message = await listing_channel.send(newMove.generateMessage())
         newMove.setMessage(listing_message)
-        
-        # TODO - add image to listing
-        #listingMessage = await listing_channel.send(content=newMove.generateMessage(), file=newMove.generateImage())
-        #newMove.setMessage(listingMessage)
         
         # Add the move object to the map
         try: 
