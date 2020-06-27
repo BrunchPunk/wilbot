@@ -14,20 +14,22 @@ class Move:
     # 
     @staticmethod
     def initVillagerImageMap(): 
+        print("Running initVillagerImageMap()", flush=True)
         reader = csv.reader(open('villager_image_map.csv'))
         
         Move.villagerImageMap = {}
         for row in reader: 
-            villagerImageMap[row[0].lower()] = row[1]
+            Move.villagerImageMap[row[0].lower()] = row[1]
     
     # Check if the provided villager name is in the dictionary of 
     # valid villagers. Return true if so, false otherwise
     @staticmethod
     def checkVillager(villagerName): 
-        if not villagerImageMap: 
+        print("Running checkVillager", flush=True)
+        if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
         
-        if villagerName.lower() in Move.villagerImageMap.keys()
+        if villagerName.lower() in Move.villagerImageMap.keys(): 
             return True
         else: 
             return False
