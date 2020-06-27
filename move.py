@@ -43,7 +43,7 @@ class Move:
     #   message: The discord.py Message object for the listing that was made
     def __init__(self, owner, villager, end_time, extra): 
         self.owner = owner
-        self.villager = villager
+        self.villager = villager.title()
         self.end_time = end_time
         self.extra = extra
         self.message = None

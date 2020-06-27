@@ -386,7 +386,7 @@ async def moveRoutine(channel, user):
             while not villagerReceived: 
                 userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
                 
-                if Move.checkVillager == False: 
+                if Move.checkVillager(userAnswer.content) == False: 
                     await channel.send("Wuh-oh! I couldn't find a villager with a name like that. Please try again")
                 else: 
                     villagerName = str(userAnswer.content)
