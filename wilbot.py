@@ -526,7 +526,7 @@ async def cancelRoutine(channel, user):
             log("cancelRoutine() - User has both a flight and a move listing")
             
             # Determine whether the user wants to delete the flight, the move or both
-            channel.send("It looks like you have both a flight listing and a move listing right now. Do you want to cancel the flight, the move or both? Reply with 'flight', 'move', or 'both'")
+            await channel.send("It looks like you have both a flight listing and a move listing right now. Do you want to cancel the flight, the move or both? Reply with 'flight', 'move', or 'both'")
             
             bothAnswer = False
             while bothAnswer == False: 
@@ -746,7 +746,7 @@ Make sure to send Wilbot instructions in a Direct Message"""
 async def invalidInputRoutine(channel): 
     log("invalidInputRoutine() - Sending message")
     
-    await channel.send("Wuh-oh! That's not a command I recognize. Make sure you're using a command specified in the help prompt with not extraneous words or characters.") 
+    await channel.send("Wuh-oh! That's not a command I recognize. Make sure you're using a command specified in the help prompt with no extraneous words or characters.") 
     await helpRoutine(channel)
     
     log("invalidInputRoutine() - message sent")
