@@ -265,7 +265,7 @@ async def flightRoutine(channel, user):
         # Create the flight object
         log("flightRoutine() - Creating the flight object")
         end_time = datetime.utcnow() + duration
-        newFlight = Flight(user.id, playerName, islandName, duration, end_time, dodoCode, extra)
+        newFlight = Flight(user, playerName, islandName, duration, end_time, dodoCode, extra)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")

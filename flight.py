@@ -8,7 +8,7 @@ class Flight:
     
     # Constructor for the Flight class
     # Arguments: 
-    #   owner: The discord.py User object ID for the user who requested the flight
+    #   owner: The discord.py User object for the user who requested the flight
     #   name: The AC player name the user provided 
     #   island: The AC island name the user provided 
     #   end_time: The time the flight should be removed
@@ -41,7 +41,7 @@ class Flight:
     # used in the listing message for this flight
     def generateMessage(self): 
         returnMessage =  "Flights are now available to " + self.island + "!\n"
-        returnMessage += "Host: " + self.name + "\n"
+        returnMessage += "Host: " + self.name + " (" + self.owner.mention + ")\n"
         returnMessage += "Dodo Code™: " + self.code + "\n"
         returnMessage += "This flight will be available for " + str(self.duration) + " from time of posting\n"
 
