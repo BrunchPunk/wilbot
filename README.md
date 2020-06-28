@@ -8,7 +8,8 @@ Requires:
 python3
 discord.py
 
-To run, place all files into a directory and run the following command from that directory: 
+To run, place all files into a directory. Create a file in that directory named "botToken.txt" and enter the bots 
+secret token in that file and nothing else. Run the following command from that directory: 
 
 python3 willbot.py
 
