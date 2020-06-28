@@ -37,7 +37,7 @@ help_throttle_lock = threading.Lock()
 
 # Simple print wrapper to force flushing
 def log(logMessage): 
-    print(logMessage, flush=True)
+    print(str(datetime.now()) + ":\t" + logMessage, flush=True)
     
 # Return True if there is a url in the provided string, False otherwise
 def checkForUrl(checkString): 
