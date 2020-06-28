@@ -3,3 +3,5 @@ botToken.txt
 __pycache__
 wilbot.err.log
 wilbot.out.log
+flights.pkl
+moves.pkl

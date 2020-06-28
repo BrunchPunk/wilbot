@@ -1,4 +1,3 @@
-import discord
 import csv
 from datetime import datetime
 
@@ -36,25 +35,25 @@ class Move:
     
     # Constructor for the Move class
     # Arguments: 
-    #   owner: The discord.py User object ID for the user who requested the move
+    #   userMention: The discord.py User mention string for the user who requested the flight
+    #   userName: The AC player name the user provided
     #   villager: The name of the AC villager moving out that the user provided 
     #   end_time: The time the move should be removed
     #   extra: Any additional information the user wants to provide about their island
-    #   message: The discord.py Message object for the listing that was made
-    def __init__(self, user, owner, villager, end_time, extra): 
-        self.user = user
-        self.owner = owner
+    def __init__(self, userMention, userName, villager, end_time, extra): 
+        self.userMention = userMention
+        self.userName = userName
         self.villager = villager.title()
         self.end_time = end_time
         self.extra = extra
-        self.message = None
+        self.messageID = None
         
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
     
     # Set the message associated with this move listing
-    def setMessage(self, message): 
-        self.message = message
+    def setMessageID(self, messageID): 
+        self.messageID = messageID
     
     # Checks if the requested duration for the move listing has been reached
     # and returns True if it has, False if it hasn't. 
@@ -67,8 +66,11 @@ class Move:
     # Use the information in this object to create a string that will be 
     # used in the listing message for this move
     def generateMessage(self): 
-        returnMessage = self.villager + " is moving out of " + self.owner + "'s island today. \n" 
-        returnMessage = returnMessage + "Send " + self.user.mention + " a PM if you're interested in having " + self.villager + " move into your town. \n"
+        if not Move.villagerImageMap: 
+            Move.initVillagerImageMap()
+        
+        returnMessage = self.villager + " is moving out of " + self.userName + "'s island today. \n" 
+        returnMessage = returnMessage + "Send " + self.userMention + " a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 
             returnMessage  = returnMessage + self.extra + "\n"

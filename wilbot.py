@@ -3,6 +3,7 @@ import asyncio
 import threading
 import time
 import re
+import pickle
 from flight import *
 from move import *
 from datetime import time
@@ -45,7 +46,71 @@ def checkForUrl(checkString):
         return True
     else: 
         return False
- 
+
+# Delete a message with the specified Message ID. Note that this will also remove 
+# and any corresponding entry in flights and moves if there is one for this message. 
+# The channel argument is the channel wilbot can use to provide feedback from the 
+# delete attempt. No feedback will be attempted if channel is None which is the 
+# default if no channel is provided
+async def deleteMessage(messageID, channel = None): 
+    try: 
+        # Retrieve the requested message from the channel
+        listing_channel = client.get_channel(listing_channel_ID)
+        messageToDelete = await listing_channel.fetch_message(messageID)
+    except Exception as ex: 
+        log("deleteRoutine() - failed to retrieve a message: " + str(ex))
+        # Exception occurred while trying to retrieve the message
+        if channel is not None: 
+            await channel.send("Wuh-oh! I couldn't find a message with that ID")
+    else: 
+        # Found the message
+        log("deleteRoutine() - Found a matching message")
+        
+        # Make sure Wilbot was the author of this message
+        if messageToDelete.author == client.user: 
+                # Perform the deletions
+                log("deleteRoutine() - Deleting message with ID " + str(messageID))
+                
+                try: 
+                    flights_lock.acquire()
+                    
+                    # See if this message has an associated flight and delete it if so
+                    originalListersID = 0
+                    for userID, flight in flights.items(): 
+                        if flight.messageID == messageToDelete.id: 
+                            originalListersID = userID
+                            break
+                            
+                    if originalListersID != 0: 
+                        del flights[originalListersID]
+                        
+                    # See if this message has an associated move and delete it if so
+                    originalListersID = 0
+                    for userID, move in moves.items(): 
+                        if move.messageID == messageToDelete.id: 
+                            originalListersID = userID
+                            break
+                            
+                    if originalListersID != 0: 
+                        del moves[originalListersID]
+                    
+                    try: 
+                        # Delete the message
+                        await messageToDelete.delete()
+                        if channel is not None: 
+                            await channel.send("Message deleted")
+                    except Exception as ex: 
+                        log("deleteRoutine() - failed to delete a message: " + str(ex))
+                        if channel is not None: 
+                            await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
+                    
+                finally: 
+                    flights_lock.release()
+        else: 
+            log("deleteRoutine() - Wilbot did not create the message you're trying to delete.")
+            if channel is not None: 
+                await channel.send("Wuh-oh! I didn't write the message you're trying to delete")
+
 # Cleanup thread. Runs in the background and cleans up expired flights
 @tasks.loop(seconds=60.0)
 async def cleanupThreadFunction(): 
@@ -62,7 +127,7 @@ async def cleanupThreadFunction():
                 log("cleanupThreadFunction() - Cleaning up an expired flight")
                 
                 # Delete the message. 
-                await flights[userID].message.delete()
+                await deleteMessage(flights[userID].messageID)
                 
                 # Append key to list of those to delete after iterating
                 keys_to_delete.append(userID)
@@ -87,7 +152,7 @@ async def cleanupThreadFunction():
                 log("cleanupThreadFunction() - Cleaning up an expired move")
                 
                 # Delete the message. 
-                await moves[userID].message.delete()
+                await deleteMessage(moves[userID].messageID) 
                 
                 # Append key to list of those to delete after iterating
                 keys_to_delete.append(userID)
@@ -265,7 +330,7 @@ async def flightRoutine(channel, user):
         # Create the flight object
         log("flightRoutine() - Creating the flight object")
         end_time = datetime.utcnow() + duration
-        newFlight = Flight(user, playerName, islandName, duration, end_time, dodoCode, extra)
+        newFlight = Flight(user.mention, playerName, islandName, duration, end_time, dodoCode, extra)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
@@ -287,7 +352,7 @@ async def flightRoutine(channel, user):
         # Send the message
         listing_channel = client.get_channel(listing_channel_ID)
         listingMessage = await listing_channel.send(newFlight.generateMessage())
-        newFlight.setMessage(listingMessage)
+        newFlight.setMessageID(listingMessage.id)
         
         # Add the flight object to the map
         try: 
@@ -454,7 +519,7 @@ async def moveRoutine(channel, user):
             return
         
         # Create the move object
-        newMove = Move(user, playerName, villagerName, end_time, extra)
+        newMove = Move(user.mention, playerName, villagerName, end_time, extra)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
@@ -477,7 +542,7 @@ async def moveRoutine(channel, user):
         # Send the message
         listing_channel = client.get_channel(listing_channel_ID)
         listing_message = await listing_channel.send(newMove.generateMessage())
-        newMove.setMessage(listing_message)
+        newMove.setMessageID(listing_message.id)
         
         # Add the move object to the map
         try: 
@@ -577,15 +642,16 @@ async def cancelRoutine(channel, user):
             
             if answerContent == "yes": 
                 # Delete the flights message
-                await flights[user.id].message.delete()
+                await deleteMessage(flights[user.id].messageID, channel) 
                 await channel.send("OK! Your previous flight listing has been canceled.")
                 
-                # Delete the flight object from the list
-                try: 
-                    flights_lock.acquire()
-                    del flights[user.id]
-                finally: 
-                    flights_lock.release()
+                # Delete the flight object from the list if deleteMessage failed to
+                if user.id in flights.keys(): 
+                    try: 
+                        flights_lock.acquire()
+                        del flights[user.id]
+                    finally: 
+                        flights_lock.release()
                     
             else: 
                 await channel.send("OK, I'll leave your flight listing in place, then.")
@@ -614,15 +680,16 @@ async def cancelRoutine(channel, user):
             
             if answerContent == "yes": 
                 # Delete the move's message
-                await moves[user.id].message.delete()
+                await deleteMessage(moves[user.id].messageID, channel) 
                 await channel.send("OK! Your previous move listing has been canceled.")
                 
-                # Delete the move object from the list
-                try: 
-                    moves_lock.acquire()
-                    del moves[user.id]
-                finally: 
-                    moves_lock.release()
+                # Delete the move object from the list if deleteMessage failed to
+                if user.id in moves.keys(): 
+                    try: 
+                        moves_lock.acquire()
+                        del moves[user.id]
+                    finally: 
+                        moves_lock.release()
                     
             else: 
                 await channel.send("OK, I'll leave your move listing in place, then.")
@@ -673,51 +740,9 @@ async def deleteRoutine(channel, user):
             
             # Extract the ID of the message to be deleted from the user's reply
             msgID = userProvidedIDMessage.content
-
-            try: 
-                # Retrieve the requested message from the channel
-                listing_channel = client.get_channel(listing_channel_ID)
-                messageToDelete = await listing_channel.fetch_message(msgID)
-            except Exception as ex: 
-                log("deleteRoutine() - failed to retrieve a message: " + str(ex))
-                # Exception occurred while trying to retrieve the message
-                await channel.send("Wuh-oh! I couldn't find a message with that ID")
-            else: 
-                # Found the message
-                log("deleteRoutine() - Found a matching message")
-                
-                # Make sure Wilbot was the author of this message
-                if messageToDelete.author == client.user: 
-                        # Perform the deletions
-                        log("deleteRoutine() - Deleting message with ID " + msgID)
-                        
-                        try: 
-                            flights_lock.acquire()
-                            
-                            # See if this message has an associated flight and delete it if so
-                            originalListersID = 0
-                            for userID, flight in flights.items(): 
-                                if flight.message.id == messageToDelete.id: 
-                                    originalListersID = flight.owner
-                                    break
-                                    
-                            if originalListersID != 0: 
-                                del flights[originalListersID]
-                            
-                            try: 
-                                # Delete the message
-                                await messageToDelete.delete()
-                                await channel.send("Message deleted")
-                            except Exception as ex: 
-                                log("deleteRoutine() - failed to delete a message: " + str(ex))
-                                await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
-                            
-                        finally: 
-                            flights_lock.release()
-                else: 
-                    log("deleteRoutine() - Wilbot did not create the message you're trying to delete.")
-                    await channel.send("Wuh-oh! I didn't write the message you're trying to delete")
-    
+            
+            await deleteMessage(msgID, channel)
+            
     finally: 
         try: 
             active_sessions_lock.acquire()
@@ -862,5 +887,42 @@ tokenFile = open('botToken.txt')
 token = tokenFile.readline()
 tokenFile.close()
 
-client.run(token)
+# Unpickle any existing flight or move listings
+try: 
+    flightsPickle = open('flights.pkl', 'rb')
+    flights = pickle.load(flightsPickle)
+    flightsPickle.close();
+except Exception as ex: 
+    log("Unable to unpickle previous flights dictionary")
+    log(str(ex))
+    
+try: 
+    movesPickle = open('moves.pkl', 'rb')
+    moves = pickle.load(movesPickle)
+    movesPickle.close();
+except Exception as ex: 
+    log("Unable to unpickle previous moves dictionary")
+    log(str(ex))
+
+try: 
+    client.run(token)
+
+finally: 
+    # Pickle any existing flight or move listings
+    try: 
+        flightsPickle = open('flights.pkl', 'wb')
+        pickle.dump(flights, flightsPickle)
+        flightsPickle.close();
+    except Exception as ex: 
+        log("Unable to pickle flights dictionary")
+        log(str(ex))
+    
+    try: 
+        movesPickle = open('moves.pkl', 'wb')
+        pickle.dump(moves, movesPickle)
+        movesPickle.close();
+    except Exception as ex: 
+        log("Unable to pickle moves dictionary")
+        log(str(ex))
+        
 log("post client.run")
