@@ -854,6 +854,13 @@ async def on_message(message):
                 help_throttle_lock.release()
             
 
+# Start the Cleanup Thread
 cleanupThreadFunction.start()
-client.run("Njk2ODc2MzI3Mzg2NzQyODU1.XovHKw.RNpRqYdkZ_2sOA817oACaFEl--U")
+
+# Retrieve wilbot's Bot Token from the botToken.txt file
+tokenFile = open('botToken.txt')
+token = tokenFile.readline()
+tokenFile.close()
+
+client.run(token)
 log("post client.run")
