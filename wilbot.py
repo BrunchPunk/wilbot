@@ -454,7 +454,7 @@ async def moveRoutine(channel, user):
             return
         
         # Create the move object
-        newMove = Move(playerName, villagerName, end_time, extra)
+        newMove = Move(user, playerName, villagerName, end_time, extra)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
@@ -666,7 +666,7 @@ async def deleteRoutine(channel, user):
             # Wait for the user to provide the requested ID
             userProvidedIDMessage = await client.wait_for('message', check=deleteCheck, timeout=30.0)
         except asyncio.TimeoutError: 
-            await message.channel.send("Wuh-oh! I didn't catch that. Make sure to tell me the ID within 30 seconds when prompted. Send me a message saying 'Delete' if you want to try again.")
+            await channel.channel.send("Wuh-oh! I didn't catch that. Make sure to tell me the ID within 30 seconds when prompted. Send me a message saying 'Delete' if you want to try again.")
         else: 
             # Got the requested input
             log("deleteRoutine() - User provided a message ID: " + str(userProvidedIDMessage.content))

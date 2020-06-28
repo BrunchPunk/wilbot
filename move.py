@@ -41,7 +41,8 @@ class Move:
     #   end_time: The time the move should be removed
     #   extra: Any additional information the user wants to provide about their island
     #   message: The discord.py Message object for the listing that was made
-    def __init__(self, owner, villager, end_time, extra): 
+    def __init__(self, user, owner, villager, end_time, extra): 
+        self.user = user
         self.owner = owner
         self.villager = villager.title()
         self.end_time = end_time
@@ -67,7 +68,7 @@ class Move:
     # used in the listing message for this move
     def generateMessage(self): 
         returnMessage = self.villager + " is moving out of " + self.owner + "'s island today. \n" 
-        returnMessage = returnMessage + "Send them a PM if you're interested in having " + self.villager + " move into your town. \n"
+        returnMessage = returnMessage + "Send " + self.user.mention + " a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 
             returnMessage  = returnMessage + self.extra + "\n"
