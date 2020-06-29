@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<config>
+    <server name="Cactus Enamel" id="417518570206003206">
+        <flight channelID="573707326976950272" rollID="690323402543857674"></flight>
+        <move channelID="573707326976950272" rollID="690323402543857674"></move>
+        <delete rollID="567949934587019266"></delete>
+    </server>
+    <server name="Bot Test Ground" id="726962488335138896">
+        <flight channelID="726962488335138900" rollID="726964347871559690"></flight>
+        <move channelID="726962488335138900" rollID="726964347871559690"></move>
+        <delete rollID="726964347871559690"></delete>
+    </server>
+<!--     <server name="Racoon Goons" id="239537702297403405">
+        <flight channelID="696081423249047632" rollID="697115759486173206"></flight>
+        <move channelID="695383061554266203" rollID="697115759486173206"></move>
+        <delete rollID="377964858223886367"></delete>
+    </server> -->
+</config>

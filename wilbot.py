@@ -4,6 +4,7 @@ import threading
 import time
 import re
 import pickle
+import xml.etree.ElementTree as ET
 from flight import *
 from move import *
 from datetime import time
@@ -14,11 +15,8 @@ from discord.ext import tasks
 # Main client reference for this Bot
 client = discord.Client()
 
-# Important discord object IDs
-listing_channel_ID = 573707326976950272#TODO - Update to correct values
-guild_ID = 417518570206003206#TODO - Update to correct values
-post_role_ID = 690323402543857674#TODO - Update to correct values
-delete_role_ID = 567949934587019266#TODO - Update to correct values
+# Important discord object IDs parsed from wilbot_config.xml
+configXML = None
 
 # A list of user's (discord User object IDs) actively using Wilbot
 active_sessions = []
@@ -53,16 +51,28 @@ def checkForUrl(checkString):
 # delete attempt. No feedback will be attempted if channel is None which is the 
 # default if no channel is provided
 async def deleteMessage(messageID, channel = None): 
-    try: 
-        # Retrieve the requested message from the channel
-        listing_channel = client.get_channel(listing_channel_ID)
-        messageToDelete = await listing_channel.fetch_message(messageID)
-    except Exception as ex: 
-        log("deleteRoutine() - failed to retrieve a message: " + str(ex))
-        # Exception occurred while trying to retrieve the message
-        if channel is not None: 
-            await channel.send("Wuh-oh! I couldn't find a message with that ID")
-    else: 
+    log("deleteMessage() - Attempting to delete a message with ID: " + str(messageID))
+    messageToDelete = None
+    for serverConfig in configXML.getroot(): 
+        for child in serverConfig: 
+            if (child.tag == 'flight') or (child.tag == 'move'): 
+                try: 
+                    # Try to retrieve the requested message from the channel
+                    listing_channel = client.get_channel(int(child.attrib['channelID']))
+                    messageToDelete = await listing_channel.fetch_message(messageID)
+                except Exception as ex: 
+                    #log("deleteRoutine() - failed to retrieve a message: " + str(ex))
+                    # Exception occurred while trying to retrieve the message but that 
+                    # may be ok, we'll check the other channels/servers
+                    messageToDelete = None
+                
+            if messageToDelete is not None: 
+                break
+            
+        if messageToDelete is not None: 
+                break
+                    
+    if messageToDelete is not None: 
         # Found the message
         log("deleteRoutine() - Found a matching message")
         
@@ -107,9 +117,91 @@ async def deleteMessage(messageID, channel = None):
                 finally: 
                     flights_lock.release()
         else: 
-            log("deleteRoutine() - Wilbot did not create the message you're trying to delete.")
+            log("deleteRoutine() - Failed to find the message the user asked to delete.")
             if channel is not None: 
-                await channel.send("Wuh-oh! I didn't write the message you're trying to delete")
+                await channel.send("Wuh-oh! I couldn't find a message with your supplied ID in the channels where I manage listings.")
+
+# Used to confirm with the user which guild they want to post the listing in when 
+# they are a member of multiple guilds Wilbot is a member of. This will return 
+# an XML Element object representing the selected server's node. 
+async def confirmServer(channel, user): 
+    log("confirmServer() - Enter")
+    
+    try: 
+        try: 
+            active_sessions_lock.acquire()
+            active_sessions.append(user.id)
+        finally: 
+            active_sessions_lock.release()
+    
+        def inputCheck(checkMessage): 
+            # Make sure this was a message sent as a DM by the same user
+            if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+                # Make sure the message does not contain a URLs
+                if checkForUrl(checkMessage.content) == True: 
+                    return False
+                else: 
+                    return True
+                    
+        # Create a list of configured servers this user is a member of
+        usersServers = []
+        for serverConfig in configXML.getroot(): 
+            log("Checking if they're a member of: " + str(serverConfig.attrib['name']))
+            guild = client.get_guild(int(serverConfig.attrib['id']))
+            if user in guild.members: 
+                log("User is a member. Adding to list.")
+                usersServers.append(serverConfig)
+        
+        # User is not in any server, should be ignored
+        if len(usersServers) == 0: 
+            return None
+            
+        # User is only in one of the servers so default to that one
+        elif len(usersServers) == 1: 
+            return usersServers[0]
+            
+        # User is in 2+ servers, prompt them to determine which they want to use
+        else: 
+            serverPromptString = "Hey, it looks like you're a member of multiple servers where I manage listings. Could you confirm for me which one you want this listing to be made on? \nEnter the number that corresponds to the server I should use: \n" 
+            for i in range(1, len(usersServers)+1): 
+                serverPromptString = serverPromptString + str(i) + ": " + usersServers[i-1].attrib['name'] + "\n"
+            
+            await channel.send(serverPromptString)
+                
+            try: 
+                log("confirmServer() - Waiting for user to pick a server")
+                serverConfirmed = False
+                while not serverConfirmed: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                    
+                    # Make sure the input is a valid number
+                    try: 
+                        input = int(userAnswer.content)
+                    
+                        # Make sure the supplied value is greater than 0 and less than len(usersServers) + 1
+                        if input > 0 and input < (len(usersServers) + 1): 
+                            serverSelection = input
+                            serverConfirmed = True
+                        else: 
+                            await channel.send("Wuh-oh! Your selection needs to be one of the options supplied. Please try again")
+                            
+                    except ValueError: 
+                        await channel.send("Wuh-oh! Your selection needs to be a positive whole number value. Please try again")
+                        
+                return usersServers[input-1]
+                
+            except asyncio.TimeoutError: 
+                log("confirmServer() - User timed out selecting a server")
+                await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Message me if you want to try again.")
+                return
+            
+    finally: 
+        try: 
+            active_sessions_lock.acquire()
+            if user.id in active_sessions: 
+                active_sessions.remove(user.id)
+        finally: 
+            active_sessions_lock.release()
 
 # Cleanup thread. Runs in the background and cleans up expired flights
 @tasks.loop(seconds=60.0)
@@ -175,7 +267,7 @@ async def cleanupThreadFunction():
 # details for a flight to their island. If questions are answered 
 # sufficiently, a message with the flight details will be posted 
 # and a flight object added to the flights list. 
-async def flightRoutine(channel, user): 
+async def flightRoutine(channel, user, listingChannelID): 
     log("flightRoutine() - Enter")
     
     def inputCheck(checkMessage): 
@@ -350,7 +442,7 @@ async def flightRoutine(channel, user):
         await channel.send("Alright! I'll go ahead and list this flight for you. You can always send me 'cancel' to have me take it down at any time.")
 
         # Send the message
-        listing_channel = client.get_channel(listing_channel_ID)
+        listing_channel = client.get_channel(int(listingChannelID))
         listingMessage = await listing_channel.send(newFlight.generateMessage())
         newFlight.setMessageID(listingMessage.id)
         
@@ -372,7 +464,7 @@ async def flightRoutine(channel, user):
 # Prompts the user with a number of questions in order to collect 
 # details for a post notifying that a villager wants to move 
 # off their island. 
-async def moveRoutine(channel, user): 
+async def moveRoutine(channel, user, listingChannelID): 
     log("moveRoutine() - Enter")
     
     # Function used to check for user answers
@@ -540,7 +632,7 @@ async def moveRoutine(channel, user):
         await channel.send("Alright! I'll go ahead and list this move for you. You can always send me 'cancel' to have me take it down at any time.")
         
         # Send the message
-        listing_channel = client.get_channel(listing_channel_ID)
+        listing_channel = client.get_channel(int(listingChannelID))
         listing_message = await listing_channel.send(newMove.generateMessage())
         newMove.setMessageID(listing_message.id)
         
@@ -802,16 +894,48 @@ async def on_message(message):
         
         # Check the direct message content for words or phrases Wilbot should act on
         if "flight" == messageContent: 
+            # Get the "server" config information for where this listing would go
+            serverConfig = await confirmServer(message.channel, message.author)
+            
+            if serverConfig is None: 
+                return
+            
             # Make sure the user has the right role to use this command
-            guild = client.get_guild(guild_ID)
-            post_role = guild.get_role(post_role_ID)
+            guild = client.get_guild(int(serverConfig.attrib['id']))
+            flightConfig = None
+            for child in serverConfig: 
+                if child.tag == "flight": 
+                    flightConfig = child
+                    break
+                    
+            post_role = guild.get_role(int(flightConfig.attrib['rollID']))
             if post_role in guild.get_member(message.author.id).roles: 
                 log("on_message() - Running the flight routine")
-                await flightRoutine(message.channel, message.author)
+                await flightRoutine(message.channel, message.author, flightConfig.attrib['channelID'])
             else: 
                 log("on_message() - Flight called by user with incorrect roles")
                 await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
-        
+                
+        elif "move" == messageContent: 
+            # Get the "server" config information for where this listing would go
+            serverConfig = await confirmServer(message.channel, message.author)
+            
+            # Make sure the user has the right role to use this command
+            guild = client.get_guild(int(serverConfig.attrib['id']))
+            moveConfig = None
+            for child in serverConfig: 
+                if child.tag == "move": 
+                    moveConfig = child
+                    break
+                    
+            post_role = guild.get_role(int(moveConfig.attrib['rollID']))
+            if post_role in guild.get_member(message.author.id).roles: 
+                log("on_message() - Running the move routine")
+                await moveRoutine(message.channel, message.author, moveConfig.attrib['channelID'])
+            else: 
+                log("on_message() - move called by user with incorrect roles")
+                await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
+                
         elif "cancel" == messageContent: 
             # Check if the user has an active flight
             if (message.author.id in flights.keys()) or (message.author.id in moves.keys()): 
@@ -819,23 +943,21 @@ async def on_message(message):
                 await cancelRoutine(message.channel, message.author)
             else: 
                 log("on_message() - Cancel called when the user did not have an active flight or move")
-                await message.channel.send("Wuh-oh! It doesn't look like you have any active flight listings.")
-        
-        elif "move" == messageContent: 
-            # Make sure the user has the right role to use this command
-            guild = client.get_guild(guild_ID)
-            post_role = guild.get_role(post_role_ID)
-            if post_role in guild.get_member(message.author.id).roles: 
-                log("on_message() - Running the move routine")
-                await moveRoutine(message.channel, message.author)
-            else: 
-                log("on_message() - move called by user with incorrect roles")
-                await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
-            
+                await message.channel.send("Wuh-oh! It doesn't look like you have any active listings.")
+                
         elif "delete" == messageContent: 
+            # Get the "server" config information for where this listing would go
+            serverConfig = await confirmServer(message.channel, message.author)
+            
             # Make sure the user has the right role to use this command
-            guild = client.get_guild(guild_ID)
-            delete_role = guild.get_role(delete_role_ID)
+            guild = client.get_guild(int(serverConfig.attrib['id']))
+            deleteConfig = None
+            for child in serverConfig: 
+                if child.tag == "delete": 
+                    deleteConfig = child
+                    break
+            
+            delete_role = guild.get_role(int(deleteConfig.attrib['rollID']))
             if delete_role in guild.get_member(message.author.id).roles: 
                 log("on_message() - Running the delete routine")
                 await deleteRoutine(message.channel, message.author)
@@ -886,6 +1008,9 @@ cleanupThreadFunction.start()
 tokenFile = open('botToken.txt')
 token = tokenFile.readline()
 tokenFile.close()
+
+# Load the configuration xml file
+configXML = ET.parse('wilbot_config.xml')
 
 # Unpickle any existing flight or move listings
 try: 
