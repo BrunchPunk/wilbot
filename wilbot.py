@@ -518,7 +518,7 @@ async def moveRoutine(channel, user, listingChannelID):
         # Variables storing the user's answers
         playerName = "" 
         villagerName = "" 
-        playerTime = ""
+        duration = 0
         end_time = ""
         extra = ""
         
@@ -553,50 +553,37 @@ async def moveRoutine(channel, user, listingChannelID):
             log("moveRoutine() - User timed out providing villagerName")
             await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
-        
-        # Get the current time on the user's island for determining Time Zone
-        await channel.send("Almost finished. What is the current in-game time on your island? Please use 24 hour time notation (e.g. 03:30 pm would be 15:30)")
+                
+        # Get the length of time (in hours) they'd like to have the move listed for
+        await channel.send("Almost finished. For how long, in hours, would you like this move to be listed?")
             
         try: 
-            log("moveRoutine() - Waiting for user to give a time")
-            timeReceived = False
-            while not timeReceived: 
+            log("moveRoutine() - Waiting for user to give a duration")
+            durationReceived = False
+            while not durationReceived: 
                 userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
                 
-                # Make sure the input is a valid time
+                # Make sure the input is a valid number
                 try: 
-                    splitTime = userAnswer.content.split(':')
-                    
-                    if len(splitTime) != 2: 
-                        await channel.send("Wuh-oh! Your time needs to include a ':'. Please try again")
+                    input = float(userAnswer.content)
+                
+                    # Make sure the supplied value is greater than 0 and less than 48
+                    if (input > 0) and (input <= 48): 
+                        duration = timedelta(hours=float(userAnswer.content))
+                        durationReceived = True
                     else: 
-                        playerTime = datetime.utcnow()
-                        playerTime = playerTime.replace(hour=int(splitTime[0]), minute=int(splitTime[1]), second=0)
-                        timeReceived = True
+                        await channel.send("Wuh-oh! Your duration needs to be a number betwee 0 and 48. Please try again")
                         
                 except ValueError: 
-                    await channel.send("Wuh-oh! Your time needs to be a valid 24 hour time value (e.g. 03:30 pm would be 15:30). Please try again")
+                    await channel.send("Wuh-oh! Your duration needs to be a numeric value (decimal values are ok). Please try again")
+                
                 
         except asyncio.TimeoutError: 
-            log("moveRoutine() - User timed out providing time")
+            log("moveRoutine() - User timed out providing duration")
             await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
-         
-        # Calculate the time this listing should end based on the user's provided time
-        if playerTime.hour < 5: 
-            # Can make a datetime for the same day at 5 am for the end time
-            fiveAM = playerTime
-            fiveAM = fiveAM.replace(hour=5, minute=0, second=0)
-            timeDelta = fiveAM - playerTime
-        else: 
-            # Make a datetime for 5 am tomorrow from their time
-            fiveAM = playerTime
-            oneDay = timedelta(days=1)
-            fiveAMTomorrow = fiveAM + oneDay
-            fiveAMTomorrow = fiveAMTomorrow.replace(hour=5, minute=0, second=0)
-            timeDelta = fiveAMTomorrow - playerTime
-        
-        end_time = datetime.utcnow() + timeDelta
+           
+        end_time = datetime.utcnow() + duration
         
         # Get any additional information they want to provide
         await channel.send("Great! Is there anything else you want to add to the listing? If not, just reply with 'none'")
