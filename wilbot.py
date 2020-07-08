@@ -42,8 +42,8 @@ def log(logMessage):
 def checkForUrl(checkString): 
     if "http" in checkString.lower(): 
         for match in re.finditer("http", checkString): 
-            log("Checking URL begining with " + checkString[match.start(), match.start()+19])
-            if checkString[match.start(), match.start()+19] != "https://twitter.com": 
+            log("checkForUrl() - Checking URL begining with " + checkString[match.start() : match.start()+19])
+            if checkString[match.start() : match.start()+19] != "https://twitter.com": 
                 return True
         return False
     else: 
@@ -594,18 +594,18 @@ async def moveRoutine(channel, user, listingChannelID):
             
         try: 
             log("moveRoutine() - Waiting for user to give an extra")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userAnswer = await client.wait_for('message', check=inputCheck, timeout=60.0)
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing extra")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 60 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
         
         # Create the move object
         newMove = Move(user.mention, playerName, villagerName, end_time, extra)
         
         # Confirm that the message looks good to the user before posting
-        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newMove.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
+        await channel.send("That's everything! With the information provided your listing will look like the following. Should I go ahead and post it? Answer 'yes' or 'no' please. \n\n" + newMove.generateMessage())
         try: 
             log("moveRoutine() - Waiting for user to confirm listing")
             userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
