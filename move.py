@@ -69,7 +69,7 @@ class Move:
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
         
-        returnMessage = self.villager + " is moving out of " + self.userName + "'s island today. \n" 
+        returnMessage = self.villager + " is moving out of " + self.userName + "'s island. \n" 
         returnMessage = returnMessage + "Send " + self.userMention + " a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 

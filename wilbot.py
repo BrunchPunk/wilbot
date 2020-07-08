@@ -38,10 +38,14 @@ help_throttle_lock = threading.Lock()
 def log(logMessage): 
     print(str(datetime.now()) + ":\t" + logMessage, flush=True)
     
-# Return True if there is a url in the provided string, False otherwise
+# Return True if there is a non-twitter url in the provided string, False otherwise
 def checkForUrl(checkString): 
     if "http" in checkString.lower(): 
-        return True
+        for match in re.finditer("http", checkString): 
+            log("Checking URL begining with " + checkString[match.start(), match.start()+19])
+            if checkString[match.start(), match.start()+19] != "https://twitter.com": 
+                return True
+        return False
     else: 
         return False
 
@@ -314,7 +318,7 @@ async def flightRoutine(channel, user, listingChannelID):
                         flights_lock.release()
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please don't include any URLs in your answers. Answers that include them will be ignored.")
+        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please don't include any non-Twitter URLs in your answers. Answers that include such URLs will be ignored.")
         
         # Variables holding the user supplied information
         playerName = ""
@@ -513,7 +517,7 @@ async def moveRoutine(channel, user, listingChannelID):
                         moves_lock.release()
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please don't include any URLs in your answers. Answers that include them will be ignored.")
+        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please don't include any non-Twitter URLs in your answers. Answers that include such URLs will be ignored.")
             
         # Variables storing the user's answers
         playerName = "" 
@@ -586,7 +590,7 @@ async def moveRoutine(channel, user, listingChannelID):
         end_time = datetime.utcnow() + duration
         
         # Get any additional information they want to provide
-        await channel.send("Great! Is there anything else you want to add to the listing? If not, just reply with 'none'")
+        await channel.send("Great! Is there anything else you want to add to the listing? I'll go ahead and add a picture of the villager myself. If you want to you can include a Twitter link too but I'm afraid I can't post images you may attach to this message directly. If you don't want to add anything, just reply with 'None'")
             
         try: 
             log("moveRoutine() - Waiting for user to give an extra")
@@ -836,7 +840,7 @@ async def helpRoutine(channel):
     
     helpMessage = """I can perform the following functions: 
 **Flight:** Answer some questions and I'll post a flight listing for your island
-**Move:**   Answer some questions and I'll post a notification for a villager moving off your island
+**Move:**   Answer some questions and I'll post a move listing for a villager moving off your island
 **Cancel:** I'll cancel a flight listing or a move listing you have
 **Delete:** Officers only - Delete a post that Wilbot has made
 **Help:** Prints this helpful help message
