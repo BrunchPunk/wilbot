@@ -331,7 +331,7 @@ async def flightRoutine(channel, user, listingChannelID):
                 return
             else: 
                 # Check if the user replied with "yes"
-                if userProvidedCancelMessage.content.lower() != "yes": 
+                if (userProvidedCancelMessage.content.lower() != "yes") and (userProvidedCancelMessage.content.lower() != "y"): 
                     # Don't allow the user to create two listings
                     await channel.send("Wuh-oh! I can't let you have two flights listed at the same time. Cancel your existing one then try again.")
                     return
@@ -461,7 +461,7 @@ async def flightRoutine(channel, user, listingChannelID):
             return
         else: 
             # Check if the user replied with "yes"
-            if userProvidedConfirmationMessage.content.lower() != "yes": 
+            if (userProvidedConfirmationMessage.content.lower() != "yes") and (userProvidedConfirmationMessage.content.lower() != "y"): 
                 # Don't allow the user to create two listings
                 await channel.send("No worries, I won't post it. Message me 'flight' if you'd like to try again.")
                 return
@@ -533,7 +533,7 @@ async def moveRoutine(channel, user, listingChannelID):
                 return
             else: 
                 # Check if the user replied with "yes"
-                if userProvidedCancelMessage.content.lower() != "yes": 
+                if (userProvidedCancelMessage.content.lower() != "yes") and (userProvidedCancelMessage.content.lower() != "y"): 
                     # Don't allow the user to create two listings
                     await channel.send("Wuh-oh! I can't let you have two moves listed at the same time. Cancel your existing one then try again.")
                     return
@@ -641,7 +641,7 @@ async def moveRoutine(channel, user, listingChannelID):
             return
         else: 
             # Check if the user replied with "yes"
-            if userProvidedConfirmationMessage.content.lower() != "yes": 
+            if (userProvidedConfirmationMessage.content.lower() != "yes") and (userProvidedConfirmationMessage.content.lower() != "y"): 
                 # Don't allow the user to create two listings
                 await channel.send("No worries, I won't post it. Message me 'move' if you'd like to try again.")
                 return
@@ -745,12 +745,12 @@ async def cancelRoutine(channel, user):
                 else: 
                     answerContent = userAnswer.content.lower()
                     
-                    if (answerContent == "yes") or (answerContent == "no"): 
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
                         flightAnswer = True
                     else: 
                         await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
             
-            if answerContent == "yes": 
+            if (answerContent == "yes") or (answerContent == "y"): 
                 # Delete the flights message
                 await deleteMessage(flights[user.id].messageID, channel) 
                 await channel.send("OK! Your previous flight listing has been canceled.")
@@ -783,12 +783,12 @@ async def cancelRoutine(channel, user):
                 else: 
                     answerContent = userAnswer.content.lower()
                     
-                    if (answerContent == "yes") or (answerContent == "no"): 
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
                         moveAnswer = True
                     else: 
                         await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
             
-            if answerContent == "yes": 
+            if (answerContent == "yes") or (answerContent == "y"): 
                 # Delete the move's message
                 await deleteMessage(moves[user.id].messageID, channel) 
                 await channel.send("OK! Your previous move listing has been canceled.")
