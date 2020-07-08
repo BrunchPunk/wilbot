@@ -173,7 +173,7 @@ async def confirmServer(channel, user):
         for serverConfig in configXML.getroot(): 
             log("Checking if they're a member of: " + str(serverConfig.attrib['name']))
             guild = client.get_guild(int(serverConfig.attrib['id']))
-            if user in guild.members: 
+            if (guild is not None) and (user in guild.members): 
                 log("User is a member. Adding to list.")
                 usersServers.append(serverConfig)
         
