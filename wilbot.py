@@ -103,7 +103,13 @@ async def deleteMessage(messageID, channel = None):
                             
                     if originalListersID != 0: 
                         del flights[originalListersID]
-                        
+                
+                finally: 
+                    flights_lock.release()
+                    
+                try: 
+                    moves_lock.acquire()
+                    
                     # See if this message has an associated move and delete it if so
                     originalListersID = 0
                     for userID, move in moves.items(): 
@@ -113,19 +119,21 @@ async def deleteMessage(messageID, channel = None):
                             
                     if originalListersID != 0: 
                         del moves[originalListersID]
-                    
-                    try: 
-                        # Delete the message
-                        await messageToDelete.delete()
-                        if channel is not None: 
-                            await channel.send("Message deleted")
-                    except Exception as ex: 
-                        log("deleteRoutine() - failed to delete a message: " + str(ex))
-                        if channel is not None: 
-                            await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
-                    
+                
                 finally: 
-                    flights_lock.release()
+                    moves_lock.release()
+                    
+                try: 
+                    # Delete the message
+                    await messageToDelete.delete()
+                    if channel is not None: 
+                        await channel.send("Message deleted")
+                except Exception as ex: 
+                    log("deleteRoutine() - failed to delete a message: " + str(ex))
+                    if channel is not None: 
+                        await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
+                    
+                
         else: 
             log("deleteRoutine() - Failed to find the message the user asked to delete.")
             if channel is not None: 
@@ -313,15 +321,9 @@ async def flightRoutine(channel, user, listingChannelID):
                     return
                 else: 
                     # Delete the flights message
-                    await flights[user.id].message.delete()
+                    await deleteMessage(flights[user.id].messageID, channel)
                     await channel.send("OK! Your previous listing has been canceled.")
                     
-                    # Delete the flight object from the list
-                    try: 
-                        flights_lock.acquire()
-                        del flights[user.id]
-                    finally: 
-                        flights_lock.release()
         
         # Begin collecting the necessary information from the user
         await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
@@ -511,16 +513,10 @@ async def moveRoutine(channel, user, listingChannelID):
                     await channel.send("Wuh-oh! I can't let you have two moves listed at the same time. Cancel your existing one then try again.")
                     return
                 else: 
-                    # Delete the moves message
-                    await moves[user.id].message.delete()
+                    # Delete the moves message and the entry in moves map for it
+                    await deleteMessage(moves[user.id].messageID, channel)
                     await channel.send("OK! Your previous listing has been canceled.")
                     
-                    # Delete the move object from the list
-                    try: 
-                        moves_lock.acquire()
-                        del moves[user.id]
-                    finally: 
-                        moves_lock.release()
         
         # Begin collecting the necessary information from the user
         await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
