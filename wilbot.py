@@ -38,14 +38,20 @@ help_throttle_lock = threading.Lock()
 def log(logMessage): 
     print(str(datetime.now()) + ":\t" + logMessage, flush=True)
     
-# Return True if there is a non-twitter url in the provided string, False otherwise
+# Return True if there is a non-twitter url in the provided string or if there are more than 2 urls, False otherwise
 def checkForUrl(checkString): 
     if "http" in checkString.lower(): 
+        findCount = 0
         for match in re.finditer("http", checkString): 
+            findCount = findCount + 1
             log("checkForUrl() - Checking URL begining with " + checkString[match.start() : match.start()+19])
             if checkString[match.start() : match.start()+19] != "https://twitter.com": 
                 return True
-        return False
+                
+        if findCount != 1: 
+            return True
+        else: 
+            return False
     else: 
         return False
 
@@ -318,7 +324,7 @@ async def flightRoutine(channel, user, listingChannelID):
                         flights_lock.release()
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please don't include any non-Twitter URLs in your answers. Answers that include such URLs will be ignored.")
+        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
         
         # Variables holding the user supplied information
         playerName = ""
@@ -517,7 +523,7 @@ async def moveRoutine(channel, user, listingChannelID):
                         moves_lock.release()
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please don't include any non-Twitter URLs in your answers. Answers that include such URLs will be ignored.")
+        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
             
         # Variables storing the user's answers
         playerName = "" 
