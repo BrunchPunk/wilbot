@@ -91,12 +91,12 @@ async def deleteMessage(messageID, channel = None):
                     
     if messageToDelete is not None: 
         # Found the message
-        log("deleteRoutine() - Found a matching message")
+        log("deleteMessage() - Found a matching message")
         
         # Make sure Wilbot was the author of this message
         if messageToDelete.author == client.user: 
                 # Perform the deletions
-                log("deleteRoutine() - Deleting message with ID " + str(messageID))
+                log("deleteMessage() - Deleting message with ID " + str(messageID))
                 
                 try: 
                     flights_lock.acquire()
@@ -109,7 +109,9 @@ async def deleteMessage(messageID, channel = None):
                             break
                             
                     if originalListersID != 0: 
-                        del flights[originalListersID]
+                        log("deleteMessage() - Removing from flight list")
+                        if originalListersID in flights.keys(): 
+                            del flights[originalListersID]
                 
                 finally: 
                     flights_lock.release()
@@ -125,24 +127,27 @@ async def deleteMessage(messageID, channel = None):
                             break
                             
                     if originalListersID != 0: 
-                        del moves[originalListersID]
+                        log("deleteMessage() - Removing from move list")
+                        if originalListersID in moves.keys(): 
+                            del moves[originalListersID]
                 
                 finally: 
                     moves_lock.release()
                     
                 try: 
                     # Delete the message
+                    log("deleteMessage() - Calling delete on the message")
                     await messageToDelete.delete()
                     if channel is not None: 
                         await channel.send("Message deleted")
                 except Exception as ex: 
-                    log("deleteRoutine() - failed to delete a message: " + str(ex))
+                    log("deleteMessage() - failed to delete a message: " + str(ex))
                     if channel is not None: 
                         await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
                     
                 
         else: 
-            log("deleteRoutine() - Failed to find the message the user asked to delete.")
+            log("deleteMessage() - Failed to find the message the user asked to delete.")
             if channel is not None: 
                 await channel.send("Wuh-oh! I couldn't find a message with your supplied ID in the channels where I manage listings.")
 
@@ -233,28 +238,29 @@ async def confirmServer(channel, user):
 async def cleanupThreadFunction(): 
     await client.wait_until_ready()
     
+    keys_to_delete = [] 
+    
     try: 
         flights_lock.acquire()
 
         # Check each flight to see if it's expired and delete its message and 
         # remove it from the list if so. 
-        keys_to_delete = []
+        
         for userID in flights.keys(): 
             if flights[userID].checkExpired() == True: 
-                log("cleanupThreadFunction() - Cleaning up an expired flight")
-                
-                # Delete the message. 
-                await deleteMessage(flights[userID].messageID)
-                
+                log("cleanupThreadFunction() - Found an expired flight with messageID: " + str(flights[userID].messageID))
                 # Append key to list of those to delete after iterating
                 keys_to_delete.append(userID)
-        
-        # Delete the flight objects from the dictionary
-        for key in keys_to_delete: 
-            del flights[key]
-            
+                
     finally: 
         flights_lock.release()
+        
+    # Delete the messages and the flight objects from the dictionary
+    for key in keys_to_delete: 
+        log("cleanupThreadFunction() - Deleting an expired flight with messageID: " + str(flights[key].messageID))
+        await deleteMessage(flights[key].messageID)
+            
+    keys_to_delete.clear()
     
     # Check each move to see if it's expired and delete its message and 
     # remove it from the list if so. 
@@ -263,23 +269,20 @@ async def cleanupThreadFunction():
 
         # Check each move to see if it's expired and delete its message and 
         # remove it from the list if so. 
-        keys_to_delete = []
         for userID in moves.keys(): 
             if moves[userID].checkExpired() == True: 
-                log("cleanupThreadFunction() - Cleaning up an expired move")
-                
-                # Delete the message. 
-                await deleteMessage(moves[userID].messageID) 
-                
+                log("cleanupThreadFunction() - Found an expired move with messageID: " + str(moves[userID].messageID))
                 # Append key to list of those to delete after iterating
                 keys_to_delete.append(userID)
-        
-        # Delete the move objects from the dictionary
-        for key in keys_to_delete: 
-            del moves[key]
-            
+                
     finally: 
         moves_lock.release()
+     
+    # Delete the message and the move objects from the dictionary
+    for key in keys_to_delete: 
+        log("cleanupThreadFunction() - Deleting an expired move with messageID: " + str(moves[key].messageID))
+        await deleteMessage(moves[key].messageID) 
+            
     
     # Clean out the contents of the help_throttle list
     try: 
