@@ -38,22 +38,29 @@ help_throttle_lock = threading.Lock()
 def log(logMessage): 
     print(str(datetime.now()) + ":\t" + logMessage, flush=True)
     
-# Return True if there is a non-twitter url in the provided string or if there are more than 2 urls, False otherwise
-def checkForUrl(checkString): 
+# Return False if there is a non-twitter url in the provided string or if there are more than 2 urls, True otherwise
+def checkForValidUrl(checkString): 
     if "http" in checkString.lower(): 
         findCount = 0
         for match in re.finditer("http", checkString): 
             findCount = findCount + 1
             log("checkForUrl() - Checking URL begining with " + checkString[match.start() : match.start()+19])
             if checkString[match.start() : match.start()+19] != "https://twitter.com": 
-                return True
+                return False
                 
         if findCount != 1: 
-            return True
-        else: 
             return False
+        else: 
+            return True
     else: 
+        return True
+
+# Return False if there is any URL in the string, True otherwise
+def checkForNoUrl(checkString): 
+    if "http" in checkString.lower(): 
         return False
+    else: 
+        return True
 
 # Delete a message with the specified Message ID. Note that this will also remove 
 # and any corresponding entry in flights and moves if there is one for this message. 
@@ -156,10 +163,10 @@ async def confirmServer(channel, user):
             # Make sure this was a message sent as a DM by the same user
             if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
                 # Make sure the message does not contain a URLs
-                if checkForUrl(checkMessage.content) == True: 
-                    return False
-                else: 
+                if checkForNoUrl(checkMessage.content) == True: 
                     return True
+                else: 
+                    return False
                     
         # Create a list of configured servers this user is a member of
         usersServers = []
@@ -288,14 +295,23 @@ async def cleanupThreadFunction():
 async def flightRoutine(channel, user, listingChannelID): 
     log("flightRoutine() - Enter")
     
-    def inputCheck(checkMessage): 
+    def inputCheckNoURL(checkMessage): 
         # Make sure this was a message sent as a DM by the same user
         if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
             # Make sure the message does not contain a URLs
-            if checkForUrl(checkMessage.content) == True: 
-                return False
-            else: 
+            if checkForNoUrl(checkMessage.content) == True: 
                 return True
+            else: 
+                return False
+                
+    def inputCheckValidURL(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message contains only a valid URL
+            if checkForValidUrl(checkMessage.content) == True: 
+                return True
+            else: 
+                return False
     
     try: 
         try: 
@@ -309,7 +325,7 @@ async def flightRoutine(channel, user, listingChannelID):
             log("flightRoutine() - User requested a flight while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a flight listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
-                userProvidedCancelMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userProvidedCancelMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
             except asyncio.TimeoutError: 
                 await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
                 return
@@ -326,7 +342,7 @@ async def flightRoutine(channel, user, listingChannelID):
                     
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
+        await channel.send("So you'd like to list a flight to your island? Great! I just need you to answer a few questions first. Please note that responses including links to a website will be ignored unless prompted otherwise. ")
         
         # Variables holding the user supplied information
         playerName = ""
@@ -340,7 +356,7 @@ async def flightRoutine(channel, user, listingChannelID):
             
         try: 
             log("flightRoutine() - Waiting for user to give a playerName")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
             playerName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("flightRoutine() - User timed out providing playerName")
@@ -352,7 +368,7 @@ async def flightRoutine(channel, user, listingChannelID):
             
         try: 
             log("flightRoutine() - Waiting for user to give an islandName")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
             islandName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("flightRoutine() - User timed out providing islandName")
@@ -366,7 +382,7 @@ async def flightRoutine(channel, user, listingChannelID):
             log("flightRoutine() - Waiting for user to give a dodoCode")
             dodoCodeReceived = False
             while not dodoCodeReceived: 
-                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
                 
                 # Check that the code is the right length
                 if len(userAnswer.content) != 5: 
@@ -397,7 +413,7 @@ async def flightRoutine(channel, user, listingChannelID):
             log("flightRoutine() - Waiting for user to give a duration")
             durationReceived = False
             while not durationReceived: 
-                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
                 
                 # Make sure the input is a valid number
                 try: 
@@ -424,7 +440,7 @@ async def flightRoutine(channel, user, listingChannelID):
             
         try: 
             log("flightRoutine() - Waiting for user to give extra information")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=60.0)
+            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("flightRoutine() - User timed out providing extra information")
@@ -439,7 +455,7 @@ async def flightRoutine(channel, user, listingChannelID):
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
         try: 
-            userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
         except asyncio.TimeoutError: 
             await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
             return
@@ -479,15 +495,24 @@ async def flightRoutine(channel, user, listingChannelID):
 async def moveRoutine(channel, user, listingChannelID): 
     log("moveRoutine() - Enter")
     
-    # Function used to check for user answers
-    def inputCheck(checkMessage): 
+    # Functions used to check for user answers
+    def inputCheckNoURL(checkMessage): 
         # Make sure this was a message sent as a DM by the same user
         if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
             # Make sure the message does not contain a URLs
-            if checkForUrl(checkMessage.content) == True: 
-                return False
-            else: 
+            if checkForNoUrl(checkMessage.content) == True: 
                 return True
+            else: 
+                return False
+                    
+    def inputCheckValidURL(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message does not contain a URLs
+            if checkForValidUrl(checkMessage.content) == True: 
+                return True
+            else: 
+                return False
     
     try: 
         try: 
@@ -502,7 +527,7 @@ async def moveRoutine(channel, user, listingChannelID):
             log("moveRoutine() - User requested a Move while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a move listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
-                userProvidedCancelMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userProvidedCancelMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
             except asyncio.TimeoutError: 
                 await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
                 return
@@ -519,7 +544,7 @@ async def moveRoutine(channel, user, listingChannelID):
                     
         
         # Begin collecting the necessary information from the user
-        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please include at most 1 Twitter link in your answers. Answers that include more than 1 or links to other websites will be ignored. ")
+        await channel.send("So you'd like to post a listing for a villager moving off of your island? Great! I just need you to answer a few questions first. Please note that responses including links to a website will be ignored unless prompted otherwise. ")
             
         # Variables storing the user's answers
         playerName = "" 
@@ -533,7 +558,7 @@ async def moveRoutine(channel, user, listingChannelID):
             
         try: 
             log("moveRoutine() - Waiting for user to give a playerName")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
             playerName = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing playerName")
@@ -547,7 +572,7 @@ async def moveRoutine(channel, user, listingChannelID):
             log("moveRoutine() - Waiting for user to give a villagerName")
             villagerReceived = False
             while not villagerReceived: 
-                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
                 
                 if Move.checkVillager(userAnswer.content) == False: 
                     await channel.send("Wuh-oh! I couldn't find a villager with a name like that. Please try again")
@@ -567,7 +592,7 @@ async def moveRoutine(channel, user, listingChannelID):
             log("moveRoutine() - Waiting for user to give a duration")
             durationReceived = False
             while not durationReceived: 
-                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                userAnswer = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
                 
                 # Make sure the input is a valid number
                 try: 
@@ -596,7 +621,7 @@ async def moveRoutine(channel, user, listingChannelID):
             
         try: 
             log("moveRoutine() - Waiting for user to give an extra")
-            userAnswer = await client.wait_for('message', check=inputCheck, timeout=60.0)
+            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing extra")
@@ -610,7 +635,7 @@ async def moveRoutine(channel, user, listingChannelID):
         await channel.send("That's everything! With the information provided your listing will look like the following. Should I go ahead and post it? Answer 'yes' or 'no' please. \n\n" + newMove.generateMessage())
         try: 
             log("moveRoutine() - Waiting for user to confirm listing")
-            userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheck, timeout=30.0)
+            userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
         except asyncio.TimeoutError: 
             await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
             return
@@ -655,11 +680,11 @@ async def cancelRoutine(channel, user):
         # Make sure this was a message sent as a DM by the same user
         if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
             # Make sure the message does not contain a URLs
-            if checkForUrl(checkMessage.content) == True: 
-                return False
-            else: 
+            if checkForNoUrl(checkMessage.content) == True: 
                 return True
-    
+            else: 
+                return False
+                    
     try: 
         try: 
             active_sessions_lock.acquire()
