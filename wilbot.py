@@ -4,16 +4,24 @@ import threading
 import time
 import re
 import pickle
+import sqlite3
+import os
 import xml.etree.ElementTree as ET
 from flight import *
 from move import *
+from userDB import * 
+from flightDB import *
+from moveDB import * 
 from datetime import time
 from datetime import datetime
 from datetime import timedelta
 from discord.ext import tasks
 
+#Give the bot the necessary permissions
+intents = discord.Intents.all()
+
 # Main client reference for this Bot
-client = discord.Client()
+client = discord.Client(intents = intents)
 
 # Important discord object IDs parsed from wilbot_config.xml
 configXML = None
@@ -21,14 +29,6 @@ configXML = None
 # A list of user's (discord User object IDs) actively using Wilbot
 active_sessions = []
 active_sessions_lock = threading.Lock()
-
-# A dictionary mapping user object ID's to their active flights
-flights = {}
-flights_lock = threading.Lock()
-
-# A dictionary mapping user object ID's to their active moves
-moves = {}
-moves_lock = threading.Lock()
 
 # List of Channel IDs that have recently requested the help message
 help_throttle = []
@@ -63,95 +63,59 @@ def checkForNoUrl(checkString):
         return True
 
 # Delete a message with the specified Message ID. Note that this will also remove 
-# and any corresponding entry in flights and moves if there is one for this message. 
+# any corresponding entry in flights and moves if there is one for this message. 
 # The channel argument is the channel wilbot can use to provide feedback from the 
 # delete attempt. No feedback will be attempted if channel is None which is the 
 # default if no channel is provided
 async def deleteMessage(messageID, channel = None): 
     log("deleteMessage() - Attempting to delete a message with ID: " + str(messageID))
-    messageToDelete = None
-    for serverConfig in configXML.getroot(): 
-        for child in serverConfig: 
-            if (child.tag == 'flight') or (child.tag == 'move'): 
-                try: 
-                    # Try to retrieve the requested message from the channel
-                    listing_channel = client.get_channel(int(child.attrib['channelID']))
-                    messageToDelete = await listing_channel.fetch_message(messageID)
-                except Exception as ex: 
-                    #log("deleteRoutine() - failed to retrieve a message: " + str(ex))
-                    # Exception occurred while trying to retrieve the message but that 
-                    # may be ok, we'll check the other channels/servers
-                    messageToDelete = None
-                
-            if messageToDelete is not None: 
-                break
-            
-        if messageToDelete is not None: 
-                break
-                    
-    if messageToDelete is not None: 
-        # Found the message
-        log("deleteMessage() - Found a matching message")
+    
+    message_deleted = False
+    
+    # Check the Flight DB for this message 
+    flight_result = FlightDB.select_message(int(messageID))
+    if not flight_result is None: # there was a flight with this message ID
+        # Delete the message
+        try: 
+            listing_channel = client.get_channel(flight_result[FlightDB.CHANNEL_ID_COL])
+            messageToDelete = await listing_channel.fetch_message(messageID)
+            await messageToDelete.delete()
+            log("deleteMessage() - Deleted a flight listing message with ID: " + str(messageID))
+        except NotFound: 
+            # Ignore this, it's fine if there isn't one
+            log("deleteMessage() - Did not find a flight message with ID: " + str(messageID))
         
-        # Make sure Wilbot was the author of this message
-        if messageToDelete.author == client.user: 
-                # Perform the deletions
-                log("deleteMessage() - Deleting message with ID " + str(messageID))
-                
-                try: 
-                    flights_lock.acquire()
-                    
-                    # See if this message has an associated flight and delete it if so
-                    originalListersID = 0
-                    for userID, flight in flights.items(): 
-                        if flight.messageID == messageToDelete.id: 
-                            originalListersID = userID
-                            break
-                            
-                    if originalListersID != 0: 
-                        log("deleteMessage() - Removing from flight list")
-                        if originalListersID in flights.keys(): 
-                            del flights[originalListersID]
-                
-                finally: 
-                    flights_lock.release()
-                    
-                try: 
-                    moves_lock.acquire()
-                    
-                    # See if this message has an associated move and delete it if so
-                    originalListersID = 0
-                    for userID, move in moves.items(): 
-                        if move.messageID == messageToDelete.id: 
-                            originalListersID = userID
-                            break
-                            
-                    if originalListersID != 0: 
-                        log("deleteMessage() - Removing from move list")
-                        if originalListersID in moves.keys(): 
-                            del moves[originalListersID]
-                
-                finally: 
-                    moves_lock.release()
-                    
-                try: 
-                    # Delete the message
-                    log("deleteMessage() - Calling delete on the message")
-                    await messageToDelete.delete()
-                    if channel is not None: 
-                        await channel.send("Message deleted")
-                except Exception as ex: 
-                    log("deleteMessage() - failed to delete a message: " + str(ex))
-                    if channel is not None: 
-                        await channel.send("Wuh-oh! Something went wrong and I was unable to delete the message.")
-                    
-                
-        else: 
-            log("deleteMessage() - Failed to find the message the user asked to delete.")
-            if channel is not None: 
-                await channel.send("Wuh-oh! I couldn't find a message with your supplied ID in the channels where I manage listings.")
-
-# Used to confirm with the user which guild they want to post the listing in when 
+        # Delete the flight's row in the database
+        FlightDB.delete(flight_result[FlightDB.USER_ID_COL], flight_result[FlightDB.SERVER_ID_COL])
+        log("deleteMessage() - Deleted a flight db entry with user/server: " + str(flight_result[FlightDB.USER_ID_COL]) + "/" + str(flight_result[FlightDB.SERVER_ID_COL]))
+        
+        message_deleted = True
+    
+    # Check the Move DB for this message
+    move_result = MoveDB.select_message(messageID)
+    if not move_result is None: # there was a move with this message ID
+        # Delete the message
+        try: 
+            listing_channel = client.get_channel(move_result[FlightDB.CHANNEL_ID_COL])
+            messageToDelete = await listing_channel.fetch_message(messageID)
+            await messageToDelete.delete()
+            log("deleteMessage() - Deleted a move listing message with ID: " + str(messageID))
+        except NotFound: 
+            # Ignore this, it's fine if there isn't one
+            log("deleteMessage() - Did not find a move message with ID: " + str(messageID))
+        
+        # Delete the move's row in the database
+        MoveDB.delete(move_result[MoveDB.USER_ID_COL], move_result[MoveDB.SERVER_ID_COL])
+        log("deleteMessage() - Deleted a move db entry with user/server: " + str(move_result[MoveDB.USER_ID_COL]) + "/" + str(move_result[MoveDB.SERVER_ID_COL]))
+        
+        message_deleted = True
+    
+    if not message_deleted: 
+        log("deleteMessage() - Failed to find the message the user asked to delete.")
+        if channel is not None: 
+            await channel.send("Wuh-oh! I couldn't find a message with your supplied ID in the channels where I manage listings.")
+    
+# Used to confirm with the user which guild they want to perform the action on in when 
 # they are a member of multiple guilds Wilbot is a member of. This will return 
 # an XML Element object representing the selected server's node. 
 async def confirmServer(channel, user): 
@@ -184,15 +148,17 @@ async def confirmServer(channel, user):
         
         # User is not in any server, should be ignored
         if len(usersServers) == 0: 
+            log("User is not in any server.")
             return None
             
         # User is only in one of the servers so default to that one
         elif len(usersServers) == 1: 
+            log("User is in only one server. Using that one.")
             return usersServers[0]
             
         # User is in 2+ servers, prompt them to determine which they want to use
         else: 
-            serverPromptString = "Hey, it looks like you're a member of multiple servers where I manage listings. Could you confirm for me which one you want this listing to be made on? \nEnter the number that corresponds to the server I should use: \n" 
+            serverPromptString = "Hey, it looks like you're a member of multiple servers where I manage listings. Could you confirm for me which server you want this action applied to? \nEnter the number that corresponds to the server I should use: \n" 
             for i in range(1, len(usersServers)+1): 
                 serverPromptString = serverPromptString + str(i) + ": " + usersServers[i-1].attrib['name'] + "\n"
             
@@ -238,52 +204,16 @@ async def confirmServer(channel, user):
 async def cleanupThreadFunction(): 
     await client.wait_until_ready()
     
-    keys_to_delete = [] 
-    
-    try: 
-        flights_lock.acquire()
-
-        # Check each flight to see if it's expired and delete its message and 
-        # remove it from the list if so. 
-        
-        for userID in flights.keys(): 
-            if flights[userID].checkExpired() == True: 
-                log("cleanupThreadFunction() - Found an expired flight with messageID: " + str(flights[userID].messageID))
-                # Append key to list of those to delete after iterating
-                keys_to_delete.append(userID)
-                
-    finally: 
-        flights_lock.release()
-        
-    # Delete the messages and the flight objects from the dictionary
-    for key in keys_to_delete: 
-        log("cleanupThreadFunction() - Deleting an expired flight with messageID: " + str(flights[key].messageID))
-        await deleteMessage(flights[key].messageID)
+    for flight_row in FlightDB.selectAll(): 
+        if datetime.utcnow() > flight_row[FlightDB.END_TIME_COL]: 
+            log("Attempting to delete a flight row: " + str(flight_row))
+            await deleteMessage(flight_row[FlightDB.MESSAGE_ID_COL])
             
-    keys_to_delete.clear()
-    
-    # Check each move to see if it's expired and delete its message and 
-    # remove it from the list if so. 
-    try: 
-        moves_lock.acquire()
-
-        # Check each move to see if it's expired and delete its message and 
-        # remove it from the list if so. 
-        for userID in moves.keys(): 
-            if moves[userID].checkExpired() == True: 
-                log("cleanupThreadFunction() - Found an expired move with messageID: " + str(moves[userID].messageID))
-                # Append key to list of those to delete after iterating
-                keys_to_delete.append(userID)
-                
-    finally: 
-        moves_lock.release()
-     
-    # Delete the message and the move objects from the dictionary
-    for key in keys_to_delete: 
-        log("cleanupThreadFunction() - Deleting an expired move with messageID: " + str(moves[key].messageID))
-        await deleteMessage(moves[key].messageID) 
+    for move_row in MoveDB.selectAll(): 
+        if datetime.utcnow() > move_row[MoveDB.END_TIME_COL]: 
+            log("Attempting to delete a move row: " + str(flight_row))
+            await deleteMessage(move_row[MoveDB.MESSAGE_ID_COL])
             
-    
     # Clean out the contents of the help_throttle list
     try: 
         help_throttle_lock.acquire()
@@ -295,7 +225,7 @@ async def cleanupThreadFunction():
 # details for a flight to their island. If questions are answered 
 # sufficiently, a message with the flight details will be posted 
 # and a flight object added to the flights list. 
-async def flightRoutine(channel, user, listingChannelID): 
+async def flightRoutine(channel, user, listingServerID, listingChannelID): 
     log("flightRoutine() - Enter")
     
     def inputCheckNoURL(checkMessage): 
@@ -324,7 +254,8 @@ async def flightRoutine(channel, user, listingChannelID):
             active_sessions_lock.release()
             
         # Check if the user has an active flight and offer to cancel the old one first
-        if user.id in flights.keys(): 
+        existing_listing = FlightDB.select_user_server(user.id, listingServerID)
+        if not existing_listing is None: 
             log("flightRoutine() - User requested a flight while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a flight listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
@@ -340,7 +271,7 @@ async def flightRoutine(channel, user, listingChannelID):
                     return
                 else: 
                     # Delete the flights message
-                    await deleteMessage(flights[user.id].messageID, channel)
+                    await deleteMessage(existing_listing[FlightDB.MESSAGE_ID_COL], channel)
                     await channel.send("OK! Your previous listing has been canceled.")
                     
         
@@ -453,10 +384,12 @@ async def flightRoutine(channel, user, listingChannelID):
         # Create the flight object
         log("flightRoutine() - Creating the flight object")
         end_time = datetime.utcnow() + duration
-        newFlight = Flight(user.mention, playerName, islandName, duration, end_time, dodoCode, extra)
+        newFlight = Flight(user.id, playerName, islandName, end_time, dodoCode, extra)
         
         # Confirm that the message looks good to the user before posting
-        await channel.send("That's everything! With the information provided your listing will look like this. \n" + newFlight.generateMessage() + "\nShould I go ahead and post it? Answer 'yes' or 'no' please.")
+        await channel.send("That's everything! With the information provided your listing will look like this.")
+        await channel.send(newFlight.generateMessage())
+        await channel.send("Should I go ahead and post it? Answer 'yes' or 'no' please.")
         try: 
             userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
         except asyncio.TimeoutError: 
@@ -473,16 +406,12 @@ async def flightRoutine(channel, user, listingChannelID):
         await channel.send("Alright! I'll go ahead and list this flight for you. You can always send me 'cancel' to have me take it down at any time.")
 
         # Send the message
-        listing_channel = client.get_channel(int(listingChannelID))
+        listing_channel = client.get_channel(listingChannelID)
         listingMessage = await listing_channel.send(newFlight.generateMessage())
         newFlight.setMessageID(listingMessage.id)
         
-        # Add the flight object to the map
-        try: 
-            flights_lock.acquire()
-            flights[user.id] = newFlight
-        finally: 
-            flights_lock.release()
+        # Add the flight to the database
+        FlightDB.insert(user.id, listingServerID, listingChannelID, listingMessage.id, playerName,islandName, end_time, dodoCode, extra)
     
     finally: 
         try: 
@@ -495,7 +424,7 @@ async def flightRoutine(channel, user, listingChannelID):
 # Prompts the user with a number of questions in order to collect 
 # details for a post notifying that a villager wants to move 
 # off their island. 
-async def moveRoutine(channel, user, listingChannelID): 
+async def moveRoutine(channel, user, listingServerID, listingChannelID): 
     log("moveRoutine() - Enter")
     
     # Functions used to check for user answers
@@ -526,7 +455,9 @@ async def moveRoutine(channel, user, listingChannelID):
             
         
         # Check if the user has an active move and offer to cancel the old one first
-        if user.id in moves.keys(): 
+        existing_listing = MoveDB.select_user_server(user.id, listingServerID)
+        log("DEBUG - existing listing is: " + str(existing_listing))
+        if not existing_listing is None: 
             log("moveRoutine() - User requested a Move while they already had one")
             await channel.send("Wuh-oh! Looks like you already have a move listed. Do you want me to go ahead and cancel that one? Reply with 'yes' or 'no'")
             try: 
@@ -542,7 +473,7 @@ async def moveRoutine(channel, user, listingChannelID):
                     return
                 else: 
                     # Delete the moves message and the entry in moves map for it
-                    await deleteMessage(moves[user.id].messageID, channel)
+                    await deleteMessage(existing_listing[MoveDB.MESSAGE_ID_COL], channel)
                     await channel.send("OK! Your previous listing has been canceled.")
                     
         
@@ -632,10 +563,12 @@ async def moveRoutine(channel, user, listingChannelID):
             return
         
         # Create the move object
-        newMove = Move(user.mention, playerName, villagerName, end_time, extra)
+        newMove = Move(user.id, playerName, villagerName, end_time, extra)
         
         # Confirm that the message looks good to the user before posting
-        await channel.send("That's everything! With the information provided your listing will look like the following. Should I go ahead and post it? Answer 'yes' or 'no' please. \n\n" + newMove.generateMessage())
+        await channel.send("That's everything! With the information provided your listing will look like this: " )
+        await channel.send(newMove.generateMessage())
+        await channel.send("Should I go ahead and post it? Answer 'yes' or 'no' please.")
         try: 
             log("moveRoutine() - Waiting for user to confirm listing")
             userProvidedConfirmationMessage = await client.wait_for('message', check=inputCheckNoURL, timeout=30.0)
@@ -653,17 +586,12 @@ async def moveRoutine(channel, user, listingChannelID):
         await channel.send("Alright! I'll go ahead and list this move for you. You can always send me 'cancel' to have me take it down at any time.")
         
         # Send the message
-        listing_channel = client.get_channel(int(listingChannelID))
+        listing_channel = client.get_channel(listingChannelID)
         listing_message = await listing_channel.send(newMove.generateMessage())
         newMove.setMessageID(listing_message.id)
         
-        # Add the move object to the map
-        try: 
-            moves_lock.acquire()
-            moves[user.id] = newMove
-        finally: 
-            moves_lock.release()
-        
+        # Add the move listing to the database
+        MoveDB.insert(user.id, listingServerID, listingChannelID, listing_message.id, playerName, end_time, villagerName, extra)
         
     finally: 
         try: 
@@ -673,9 +601,9 @@ async def moveRoutine(channel, user, listingChannelID):
         finally: 
             active_sessions_lock.release()
 
-# Will confirm that the user wishes to cancel their flight and, if 
-# so, delete the associated message and flight object. 
-async def cancelRoutine(channel, user): 
+# Will confirm that the user wishes to cancel their listing and, if 
+# so, delete the associated message and listing database row. 
+async def cancelRoutine(channel, user, serverID): 
     log("cancelRoutine() - Enter")
     
     # Functions used for checking input for user answers
@@ -694,9 +622,17 @@ async def cancelRoutine(channel, user):
             active_sessions.append(user.id)
         finally: 
             active_sessions_lock.release()
-            
-        flight_delete_flag = (user.id in flights.keys())
-        move_delete_flag = (user.id in moves.keys())
+        
+        existing_flight = FlightDB.select_user_server(user.id, serverID)
+        existing_move = MoveDB.select_user_server(user.id, serverID)
+        
+        flight_delete_flag = (not existing_flight is None)
+        move_delete_flag = (not existing_move is None)
+        
+        # If the user has neither a flight or delete, go no further
+        if not flight_delete_flag and not move_delete_flag: 
+            await channel.send("Wuh-oh! It doesn't look like you have any active listings.")
+            return
         
         # Check whether the user has an active flight, move or both 
         if flight_delete_flag and move_delete_flag:
@@ -735,7 +671,10 @@ async def cancelRoutine(channel, user):
         if flight_delete_flag: 
             # User only has an active flight they want deleted
             log("cancelRoutine() - User has only an active flight")
-            await channel.send("It looks like you have the following flight: \n" + flights[user.id].generateMessage() + "\nWould you like to delete it? Please reply with 'yes' or 'no'")
+            user_flight = Flight(existing_flight[FlightDB.USER_ID_COL], existing_flight[FlightDB.PLAYER_NAME_COL], existing_flight[FlightDB.ISLAND_NAME_COL], existing_flight[FlightDB.END_TIME_COL], existing_flight[FlightDB.DODO_CODE_COL], existing_flight[FlightDB.EXTRA_COL])
+            await channel.send("It looks like you have the following flight: " )
+            await channel.send(user_flight.generateMessage())
+            await channel.send("Would you like to delete it? Please reply with 'yes' or 'no'")
             
             flightAnswer = False
             answerContent = "" 
@@ -755,16 +694,8 @@ async def cancelRoutine(channel, user):
             
             if (answerContent == "yes") or (answerContent == "y"): 
                 # Delete the flights message
-                await deleteMessage(flights[user.id].messageID, channel) 
+                await deleteMessage(existing_flight[FlightDB.MESSAGE_ID_COL], channel) 
                 await channel.send("OK! Your previous flight listing has been canceled.")
-                
-                # Delete the flight object from the list if deleteMessage failed to
-                if user.id in flights.keys(): 
-                    try: 
-                        flights_lock.acquire()
-                        del flights[user.id]
-                    finally: 
-                        flights_lock.release()
                     
             else: 
                 await channel.send("OK, I'll leave your flight listing in place, then.")
@@ -773,7 +704,10 @@ async def cancelRoutine(channel, user):
         if move_delete_flag: 
             # User only has an active move they want deleted
             log("cancelRoutine() - User has only an active move")
-            await channel.send("It looks like you have the following move listing: \n" + moves[user.id].generateMessage() + "\nWould you like to delete it? Please reply with 'yes' or 'no'")
+            user_move = Move(existing_move[MoveDB.USER_ID_COL], existing_move[MoveDB.PLAYER_NAME_COL], existing_move[MoveDB.VILLAGER_COL], existing_move[MoveDB.END_TIME_COL], existing_move[MoveDB.EXTRA_COL])
+            await channel.send("It looks like you have the following move listing: ")
+            await channel.send(user_move.generateMessage())
+            await channel.send("Would you like to delete it? Please reply with 'yes' or 'no'")
             
             moveAnswer = False
             answerContent = "" 
@@ -793,25 +727,12 @@ async def cancelRoutine(channel, user):
             
             if (answerContent == "yes") or (answerContent == "y"): 
                 # Delete the move's message
-                await deleteMessage(moves[user.id].messageID, channel) 
+                await deleteMessage(existing_move[MoveDB.MESSAGE_ID_COL], channel) 
                 await channel.send("OK! Your previous move listing has been canceled.")
-                
-                # Delete the move object from the list if deleteMessage failed to
-                if user.id in moves.keys(): 
-                    try: 
-                        moves_lock.acquire()
-                        del moves[user.id]
-                    finally: 
-                        moves_lock.release()
                     
             else: 
                 await channel.send("OK, I'll leave your move listing in place, then.")
                 return
-        
-        else: 
-            # User has neither. Note this should have been checked 
-            # previously so we'll just log here and exit
-            log("cancelRoutine() - User requested cancel but had nothing to cancel")
     
     finally: 
         try: 
@@ -932,7 +853,7 @@ async def on_message(message):
             post_role = guild.get_role(int(flightConfig.attrib['rollID']))
             if post_role in guild.get_member(message.author.id).roles: 
                 log("on_message() - Running the flight routine")
-                await flightRoutine(message.channel, message.author, flightConfig.attrib['channelID'])
+                await flightRoutine(message.channel, message.author, int(serverConfig.attrib['id']), int(flightConfig.attrib['channelID']))
             else: 
                 log("on_message() - Flight called by user with incorrect roles")
                 await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
@@ -952,19 +873,16 @@ async def on_message(message):
             post_role = guild.get_role(int(moveConfig.attrib['rollID']))
             if post_role in guild.get_member(message.author.id).roles: 
                 log("on_message() - Running the move routine")
-                await moveRoutine(message.channel, message.author, moveConfig.attrib['channelID'])
+                await moveRoutine(message.channel, message.author, int(serverConfig.attrib['id']), int(moveConfig.attrib['channelID']))
             else: 
                 log("on_message() - move called by user with incorrect roles")
                 await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
                 
         elif "cancel" == messageContent: 
-            # Check if the user has an active flight
-            if (message.author.id in flights.keys()) or (message.author.id in moves.keys()): 
-                log("on_message() - Running the cancel routine")
-                await cancelRoutine(message.channel, message.author)
-            else: 
-                log("on_message() - Cancel called when the user did not have an active flight or move")
-                await message.channel.send("Wuh-oh! It doesn't look like you have any active listings.")
+            log("on_message() - Running the cancel routine")
+            # Get the "server" config information for where this listing would go
+            serverConfig = await confirmServer(message.channel, message.author)
+            await cancelRoutine(message.channel, message.author, int(serverConfig.attrib['id']))
                 
         elif "delete" == messageContent: 
             # Get the "server" config information for where this listing would go
@@ -1033,42 +951,24 @@ tokenFile.close()
 # Load the configuration xml file
 configXML = ET.parse('wilbot_config.xml')
 
-# Unpickle any existing flight or move listings
+# Open or initialize the database file
 try: 
-    flightsPickle = open('flights.pkl', 'rb')
-    flights = pickle.load(flightsPickle)
-    flightsPickle.close();
-except Exception as ex: 
-    log("Unable to unpickle previous flights dictionary")
-    log(str(ex))
+    if os.path.isfile('wilbot.db'): 
+        log("Database already exists")
+        
+    else: 
+        log("initializing database")
+        UserDB.initialize()
+        FlightDB.initialize()
+        MoveDB.initialize()
+        
+        log("initialization complete!")
     
-try: 
-    movesPickle = open('moves.pkl', 'rb')
-    moves = pickle.load(movesPickle)
-    movesPickle.close();
 except Exception as ex: 
-    log("Unable to unpickle previous moves dictionary")
+    log("Unable to initialize the database")
     log(str(ex))
 
-try: 
-    client.run(token)
-
-finally: 
-    # Pickle any existing flight or move listings
-    try: 
-        flightsPickle = open('flights.pkl', 'wb')
-        pickle.dump(flights, flightsPickle)
-        flightsPickle.close();
-    except Exception as ex: 
-        log("Unable to pickle flights dictionary")
-        log(str(ex))
-    
-    try: 
-        movesPickle = open('moves.pkl', 'wb')
-        pickle.dump(moves, movesPickle)
-        movesPickle.close();
-    except Exception as ex: 
-        log("Unable to pickle moves dictionary")
-        log(str(ex))
+# Start Wilbot!
+client.run(token)
         
 log("post client.run")

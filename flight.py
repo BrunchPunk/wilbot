@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import timedelta
 
 # Class representing a flight listing that a user has requested. It's created
 # when the listing is successfully created and persists until its timer expires 
@@ -7,17 +8,16 @@ class Flight:
     
     # Constructor for the Flight class
     # Arguments: 
-    #   userMention: The discord.py User mention string for the user who requested the flight
-    #   userName: The AC player name the user provided 
+    #   userID: The discord.py User ID for the user who requested the flight
+    #   playerName: The AC player name the user provided 
     #   island: The AC island name the user provided 
     #   end_time: The time the flight should be removed
     #   code: The Dodo Code(tm) for the flight
     #   extra: Any additional information the user wants to provide about their island
-    def __init__(self, userMention, userName, island, duration, end_time, code, extra): 
-        self.userMention = userMention
-        self.userName = userName
+    def __init__(self, userID, playerName, island, end_time, code, extra): 
+        self.userID = userID
+        self.playerName = playerName
         self.island = island
-        self.duration = duration
         self.end_time = end_time
         self.code = code
         self.extra = extra
@@ -34,14 +34,18 @@ class Flight:
     # Sets the message member variable in this flight object
     def setMessageID(self, messageID): 
         self.messageID = messageID
+        
+    # Returns the duration of the listing as timedelta object
+    def getDuration(self): 
+        return self.end_time - datetime.utcnow()
     
     # Use the information in this object to create a string that will be 
     # used in the listing message for this flight
     def generateMessage(self): 
         returnMessage =  "Flights are now available to " + self.island + "!\n"
-        returnMessage += "Host: " + self.userName + " (" + self.userMention + ")\n"
+        returnMessage += "Host: " + self.playerName + " (<@" + str(self.userID) + ">)\n"
         returnMessage += "Dodo Code™: " + self.code + "\n"
-        returnMessage += "This flight will be available for " + str(self.duration) + " from time of posting\n"
+        returnMessage += "This flight will be available for " + str(self.getDuration()) + " from time of posting\n"
 
         
         if self.extra.lower() != "none": 

@@ -35,14 +35,14 @@ class Move:
     
     # Constructor for the Move class
     # Arguments: 
-    #   userMention: The discord.py User mention string for the user who requested the flight
-    #   userName: The AC player name the user provided
+    #   userID: The discord.py User mention string for the user who requested the flight
+    #   playerName: The AC player name the user provided
     #   villager: The name of the AC villager moving out that the user provided 
     #   end_time: The time the move should be removed
     #   extra: Any additional information the user wants to provide about their island
-    def __init__(self, userMention, userName, villager, end_time, extra): 
-        self.userMention = userMention
-        self.userName = userName
+    def __init__(self, userID, playerName, villager, end_time, extra): 
+        self.userID = userID
+        self.playerName = playerName
         self.villager = villager.title()
         self.end_time = end_time
         self.extra = extra
@@ -69,8 +69,8 @@ class Move:
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
         
-        returnMessage = self.villager + " is moving out of " + self.userName + "'s island. \n" 
-        returnMessage = returnMessage + "Send " + self.userMention + " a PM if you're interested in having " + self.villager + " move into your town. \n"
+        returnMessage = self.villager + " is moving out of " + self.playerName + "'s island. \n" 
+        returnMessage = returnMessage + "Send <@" + str(self.userID) + "> a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 
             returnMessage  = returnMessage + self.extra + "\n"
