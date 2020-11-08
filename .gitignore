@@ -5,3 +5,4 @@ wilbot.err.log
 wilbot.out.log
 flights.pkl
 moves.pkl
+wilbot.db
