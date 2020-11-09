@@ -142,6 +142,9 @@ async def confirmServer(channel, user):
         for serverConfig in configXML.getroot(): 
             log("Checking if they're a member of: " + str(serverConfig.attrib['name']))
             guild = client.get_guild(int(serverConfig.attrib['id']))
+            log("DEBUG - guild is: " + str(guild))
+            for member in guild.members: 
+                log("DEBUG - member is: " + str(member))
             if (guild is not None) and (user in guild.members): 
                 log("User is a member. Adding to list.")
                 usersServers.append(serverConfig)
@@ -601,6 +604,514 @@ async def moveRoutine(channel, user, listingServerID, listingChannelID):
         finally: 
             active_sessions_lock.release()
 
+# Will, through a series of prompts, allow the user to update an 
+# existing flight or move listing the user has created. 
+async def updateRoutine(channel, user, serverID): 
+    log("updateRoutine() - Enter")
+    
+    # Functions used for checking input for user answers
+    def inputCheck(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message does not contain a URLs
+            if checkForNoUrl(checkMessage.content) == True: 
+                return True
+            else: 
+                return False
+                
+    def inputCheckNoURL(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message does not contain a URLs
+            if checkForNoUrl(checkMessage.content) == True: 
+                return True
+            else: 
+                return False
+                
+    def inputCheckValidURL(checkMessage): 
+        # Make sure this was a message sent as a DM by the same user
+        if ((checkMessage.channel == channel) and (checkMessage.author == user)): 
+            # Make sure the message contains only a valid URL
+            if checkForValidUrl(checkMessage.content) == True: 
+                return True
+            else: 
+                return False
+                
+    try: 
+        try: 
+            active_sessions_lock.acquire()
+            active_sessions.append(user.id)
+        finally: 
+            active_sessions_lock.release()
+            
+        # Determine what flight and/or move this user has in this server
+        existing_flight = FlightDB.select_user_server(user.id, serverID)
+        existing_move = MoveDB.select_user_server(user.id, serverID)
+        
+        flight_update_flag = (not existing_flight is None)
+        move_update_flag = (not existing_move is None)
+        
+        # If the user has neither a flight or delete, go no further
+        if not flight_update_flag and not move_update_flag: 
+            await channel.send("Wuh-oh! It doesn't look like you have any active listings.")
+            return
+        
+        # Check whether the user has an active flight, move or both 
+        if flight_update_flag and move_update_flag:
+            # User has both a flight and a move listing
+            log("updateRoutine() - User has both a flight and a move listing")
+            
+            # Determine whether the user wants to delete the flight, the move or both
+            await channel.send("It looks like you have both a flight listing and a move listing right now. Do you want to update the flight or the move? Reply with 'flight' or 'move'")
+            
+            answer = False
+            while answer == False: 
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    answerContent = userAnswer.content.lower()
+                    
+                    if (answerContent == "flight") or (answerContent == "move"): 
+                        answer = True
+                    else: 
+                        await channel.send("Wuh-oh! Please reply with either 'flight' or 'move' only.")
+            
+            # Update the flags per the user's answer 
+            if answerContent == "flight": 
+                flight_update_flag = True
+                move_update_flag = False
+            elif answerContent == "move": 
+                flight_update_flag = False
+                move_update_flag = True
+                
+        # Handle an update to their flight listing
+        if flight_update_flag: 
+            log("updateRoutine() - Updating the user's flight listing")
+            
+            # Make a flight object from existing_flight
+            user_flight = Flight(existing_flight[FlightDB.USER_ID_COL], existing_flight[FlightDB.PLAYER_NAME_COL], existing_flight[FlightDB.ISLAND_NAME_COL], existing_flight[FlightDB.END_TIME_COL], existing_flight[FlightDB.DODO_CODE_COL], existing_flight[FlightDB.EXTRA_COL])
+            
+            # Display the current flight and make sure the user wants to update it
+            await channel.send("It looks like you have the following flight: " )
+            await channel.send(user_flight.generateMessage())
+            await channel.send("Would you like to modify it? Please reply with 'yes' or 'no'")
+            
+            flightAnswer = False
+            answerContent = "" 
+            while flightAnswer == False: 
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    answerContent = userAnswer.content.lower()
+                    
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                        flightAnswer = True
+                    else: 
+                        await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+            
+            if (answerContent == "no") or (answerContent == "n"): 
+                # Don't perform any updates
+                await channel.send("OK, I'll leave your flight listing the way it is.")
+                return
+                
+            # Loop, allowing the user to modify an aspect of the flight with each iteration until the done
+            doneEditing = False
+            answerContent = ""
+            while doneEditing == False: 
+                # Determine which part of the flight to update
+                selectMessage = """What part of the flight listing would you like to change?
+    1. Dodo Code™
+    2. Duration
+    3. Extra Information
+    Please answer with the number of the option you want."""
+                await channel.send(selectMessage)
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                    answerContent = userAnswer.content.lower()
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    if answerContent == "1": 
+                        log("updateRoutine() - User wants to update their code")
+                        # Get the user's Dodo Code Update
+                        await channel.send("What would you like to update the Dodo Code to?")
+                            
+                        try: 
+                            log("updateRoutine() - Waiting for user to give a dodoCode")
+                            dodoCodeReceived = False
+                            while not dodoCodeReceived: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                                
+                                # Check that the code is the right length
+                                if len(userAnswer.content) != 5: 
+                                    await channel.send("Wuh-oh! Your Dodo Code™ needs to be exactly 5 characters long. Please double check it and resubmit it.")
+                                    
+                                # Check that the code is only alpha numeric characters
+                                elif re.fullmatch("[A-Z0-9]{5}", userAnswer.content.upper()) == None: 
+                                    await channel.send("Wuh-oh! Your Dodo Code™ needs to be letters and numbers only. Please double check it and resubmit it.")
+                                    
+                                # Check that the code does not contain invalid letters
+                                elif re.search("[IOZ]", userAnswer.content.upper()) != None: 
+                                    await channel.send("Wuh-oh! Your Dodo Code™ cannot contain the characters 'I', 'O' or 'Z'. Please double check it and resubmit it.")
+                                    
+                                # This is a valid code
+                                else: 
+                                    dodoCode = userAnswer.content.upper()
+                                    dodoCodeReceived = True
+                                
+                            user_flight.code = dodoCode
+                            
+                            # Check if the user wants to update something else
+                            editingAnswered = False
+                            answerContent = ""
+                            
+                            await channel.send("Do you want to change any other parts of the listing? Answer with 'yes' or 'no'")
+                            while editingAnswered == False: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+
+                                answerContent = userAnswer.content.lower()
+                                
+                                if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                                    editingAnswered = True
+                                else: 
+                                    await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+                            
+                            if (answerContent == "no") or (answerContent == "n"):
+                                doneEditing = True
+                                
+                        except asyncio.TimeoutError: 
+                            log("updateRoutine() - User timed out providing dodoCode")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            return
+                            
+                    elif answerContent == "2":
+                        log("updateRoutine() - User wants to update their duration")
+                        # Update the Duration
+                        await channel.send("How long, in hours, would you like this flight to be listed now?")
+                        try: 
+                            log("updateRoutine() - Waiting for user to give a duration")
+                            durationReceived = False
+                            while not durationReceived: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                                
+                                # Make sure the input is a valid number
+                                try: 
+                                    input = float(userAnswer.content)
+                                
+                                    # Make sure the supplied value is greater than 0
+                                    if input > 0: 
+                                        duration = timedelta(hours=float(userAnswer.content))
+                                        durationReceived = True
+                                    else: 
+                                        await channel.send("Wuh-oh! Your duration needs to be a positive number. Please try again")
+                                        
+                                except ValueError: 
+                                    await channel.send("Wuh-oh! Your duration needs to be a positive numeric value (decimal values are ok). Please try again")
+                                
+                            end_time = datetime.utcnow() + duration
+                            user_flight.end_time = end_time
+                            
+                            # Check if the user wants to update something else
+                            editingAnswered = False
+                            answerContent = ""
+                            
+                            await channel.send("Do you want to change any other parts of the listing? Answer with 'yes' or 'no'")
+                            while editingAnswered == False: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+
+                                answerContent = userAnswer.content.lower()
+                                
+                                if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                                    editingAnswered = True
+                                else: 
+                                    await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+                            
+                            if (answerContent == "no") or (answerContent == "n"):
+                                doneEditing = True
+                                
+                        except asyncio.TimeoutError: 
+                            log("updateRoutine() - User timed out providing dodoCode")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            return
+                        
+                    elif answerContent == "3": 
+                        log("updateRoutine() - User wants to update their extra info")
+                        # Update the Extra Information
+                        await channel.send("What would you like to change the extra information in the listing to? If you don't have anything to add, just reply with 'None'")
+                        try: 
+                            log("updateRoutine() - Waiting for user to give extra information")
+                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+                            extra = str(userAnswer.content)
+                                
+                            user_flight.extra = extra
+                            
+                            # Check if the user wants to update something else
+                            editingAnswered = False
+                            answerContent = ""
+                            
+                            await channel.send("Do you want to change any other parts of the listing? Answer with 'yes' or 'no'")
+                            while editingAnswered == False: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+
+                                answerContent = userAnswer.content.lower()
+                                
+                                if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                                    editingAnswered = True
+                                else: 
+                                    await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+                            
+                            if (answerContent == "no") or (answerContent == "n"):
+                                doneEditing = True
+                                
+                        except asyncio.TimeoutError: 
+                            log("updateRoutine() - User timed out providing dodoCode")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            return
+                        
+                    else: 
+                        # Invalid Input
+                        await channel.send("Wuh-oh! Please reply with just the single number of the option you wish to select e.g. '1'")
+                        
+            # Check that the user likes the new post
+            log("updateRoutine() - Confirming the user's update")
+            await channel.send("With your updates, the flight listing will look like this: " )
+            await channel.send(user_flight.generateMessage())
+            await channel.send("Would you like to post this modifed version? Please reply with 'yes' or 'no'")
+            
+            flightAnswer = False
+            answerContent = "" 
+            while flightAnswer == False: 
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    answerContent = userAnswer.content.lower()
+                    
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                        flightAnswer = True
+                    else: 
+                        await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+            
+            if (answerContent == "no") or (answerContent == "n"): 
+                # Leave the flight listing as is
+                await channel.send("OK, I'll leave your flight listing the way it is.")
+                return
+                
+            # Delete the existing message
+            log("updateRoutine() - deleting existing flight listing")
+            await deleteMessage(existing_flight[FlightDB.MESSAGE_ID_COL], channel) 
+            
+            # Send the message
+            log("updateRoutine() - sending updated message")
+            listing_channel = client.get_channel(existing_flight[FlightDB.CHANNEL_ID_COL])
+            listingMessage = await listing_channel.send(user_flight.generateMessage())
+            user_flight.setMessageID(listingMessage.id)
+            
+            # Add the flight to the database
+            log("updateRoutine() - adding updated flight to database")
+            FlightDB.insert(existing_flight[FlightDB.USER_ID_COL], existing_flight[FlightDB.SERVER_ID_COL], existing_flight[FlightDB.CHANNEL_ID_COL], listingMessage.id, user_flight.playerName, user_flight.island, user_flight.end_time, user_flight.code, user_flight.extra)
+            
+            await channel.send("All set! Your listing has been updated.")
+            
+        # Handle an update to their move listing    
+        if move_update_flag: 
+            log("updateRoutine() - Updating the user's move listing")
+            
+            # Make a move object from existing_move
+            user_move = Move(existing_move[MoveDB.USER_ID_COL], existing_move[MoveDB.PLAYER_NAME_COL], existing_move[MoveDB.VILLAGER_COL], existing_move[MoveDB.END_TIME_COL], existing_move[MoveDB.EXTRA_COL])
+            
+            # Display the current move and make sure the user wants to update it
+            await channel.send("It looks like you have the following move: " )
+            await channel.send(user_move.generateMessage())
+            await channel.send("Would you like to modify it? Please reply with 'yes' or 'no'")
+            
+            moveAnswer = False
+            answerContent = "" 
+            while moveAnswer == False: 
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    answerContent = userAnswer.content.lower()
+                    
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                        moveAnswer = True
+                    else: 
+                        await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+            
+            if (answerContent == "no") or (answerContent == "n"): 
+                # Don't perform any updates
+                await channel.send("OK, I'll leave your move listing the way it is.")
+                return
+                
+            # Loop, allowing the user to modify an aspect of the move with each iteration until the done
+            doneEditing = False
+            answerContent = ""
+            while doneEditing == False: 
+                # Determine which part of the move to update
+                selectMessage = """What part of the move listing would you like to change?
+    1. Duration
+    2. Extra Information
+    Please answer with the number of the option you want."""
+                await channel.send(selectMessage)
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                    answerContent = userAnswer.content.lower()
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    
+                    if answerContent == "1":
+                        log("updateRoutine() - User wants to update their duration")
+                        # Update the Duration
+                        await channel.send("How long, in hours, would you like this move to be listed now?")
+                        try: 
+                            log("updateRoutine() - Waiting for user to give a duration")
+                            durationReceived = False
+                            while not durationReceived: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                                
+                                # Make sure the input is a valid number
+                                try: 
+                                    input = float(userAnswer.content)
+                                
+                                    # Make sure the supplied value is greater than 0
+                                    if input > 0: 
+                                        duration = timedelta(hours=float(userAnswer.content))
+                                        durationReceived = True
+                                    else: 
+                                        await channel.send("Wuh-oh! Your duration needs to be a positive number. Please try again")
+                                        
+                                except ValueError: 
+                                    await channel.send("Wuh-oh! Your duration needs to be a positive numeric value (decimal values are ok). Please try again")
+                                
+                            end_time = datetime.utcnow() + duration
+                            user_move.end_time = end_time
+                            
+                            # Check if the user wants to update something else
+                            editingAnswered = False
+                            answerContent = ""
+                            
+                            await channel.send("Do you want to change any other parts of the listing? Answer with 'yes' or 'no'")
+                            while editingAnswered == False: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+
+                                answerContent = userAnswer.content.lower()
+                                
+                                if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                                    editingAnswered = True
+                                else: 
+                                    await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+                            
+                            if (answerContent == "no") or (answerContent == "n"):
+                                doneEditing = True
+                                
+                        except asyncio.TimeoutError: 
+                            log("updateRoutine() - User timed out providing dodoCode")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            return
+                        
+                    elif answerContent == "2": 
+                        log("updateRoutine() - User wants to update their extra info")
+                        # Update the Extra Information
+                        await channel.send("What would you like to change the extra information in the listing to? If you don't have anything to add, just reply with 'None'")
+                        try: 
+                            log("updateRoutine() - Waiting for user to give extra information")
+                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+                            extra = str(userAnswer.content)
+                                
+                            user_move.extra = extra
+                            
+                            # Check if the user wants to update something else
+                            editingAnswered = False
+                            answerContent = ""
+                            
+                            await channel.send("Do you want to change any other parts of the listing? Answer with 'yes' or 'no'")
+                            while editingAnswered == False: 
+                                userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+
+                                answerContent = userAnswer.content.lower()
+                                
+                                if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                                    editingAnswered = True
+                                else: 
+                                    await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+                            
+                            if (answerContent == "no") or (answerContent == "n"):
+                                doneEditing = True
+                                
+                        except asyncio.TimeoutError: 
+                            log("updateRoutine() - User timed out providing dodoCode")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            return
+                        
+                    else: 
+                        # Invalid Input
+                        await channel.send("Wuh-oh! Please reply with just the single number of the option you wish to select e.g. '1'")
+                        
+            # Check that the user likes the new post
+            log("updateRoutine() - Confirming the user's update")
+            await channel.send("With your updates, the move listing will look like this: " )
+            await channel.send(user_move.generateMessage())
+            await channel.send("Would you like to post this modifed version? Please reply with 'yes' or 'no'")
+            
+            moveAnswer = False
+            answerContent = "" 
+            while moveAnswer == False: 
+                try: 
+                    userAnswer = await client.wait_for('message', check=inputCheck, timeout=30.0)
+                except asyncio.TimeoutError: 
+                    await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                    return
+                else: 
+                    answerContent = userAnswer.content.lower()
+                    
+                    if (answerContent == "yes") or (answerContent == "y") or (answerContent == "no") or (answerContent == "n"): 
+                        moveAnswer = True
+                    else: 
+                        await channel.send("Wuh-oh! Please reply with either 'yes' or 'no' only.")
+            
+            if (answerContent == "no") or (answerContent == "n"): 
+                # Leave the move listing as is
+                await channel.send("OK, I'll leave your move listing the way it is.")
+                return
+                
+            # Delete the existing message
+            log("updateRoutine() - deleting existing move listing")
+            await deleteMessage(existing_move[MoveDB.MESSAGE_ID_COL], channel) 
+            
+            # Send the message
+            log("updateRoutine() - sending updated message")
+            listing_channel = client.get_channel(existing_move[MoveDB.CHANNEL_ID_COL])
+            listingMessage = await listing_channel.send(user_move.generateMessage())
+            user_move.setMessageID(listingMessage.id)
+            
+            # Add the flight to the database
+            log("updateRoutine() - adding updated flight to database")
+            MoveDB.insert(existing_move[MoveDB.USER_ID_COL], existing_move[MoveDB.SERVER_ID_COL], existing_move[MoveDB.CHANNEL_ID_COL], listingMessage.id, user_move.playerName, user_move.end_time, user_move.villager, user_move.extra)
+            
+            await channel.send("All set! Your listing has been updated.")
+                
+    finally: 
+        try: 
+            active_sessions_lock.acquire()
+            if user.id in active_sessions: 
+                active_sessions.remove(user.id)
+        finally: 
+            active_sessions_lock.release()
+
 # Will confirm that the user wishes to cancel their listing and, if 
 # so, delete the associated message and listing database row. 
 async def cancelRoutine(channel, user, serverID): 
@@ -792,6 +1303,7 @@ async def helpRoutine(channel):
     helpMessage = """I can perform the following functions: 
 **Flight:** Answer some questions and I'll post a flight listing for your island
 **Move:**   Answer some questions and I'll post a move listing for a villager moving off your island
+**Update:** Answer some questions and I'll update one of your existing flight or move listings. 
 **Cancel:** I'll cancel a flight listing or a move listing you have
 **Delete:** Officers only - Delete a post that Wilbot has made
 **Help:** Prints this helpful help message
@@ -877,9 +1389,13 @@ async def on_message(message):
             else: 
                 log("on_message() - move called by user with incorrect roles")
                 await message.channel.send("Wuh-oh! Looks like you don't have the right role to use this command.")
-                
+            
+        elif "update" == messageContent: 
+            # Get the "server" config information for where this listing would go
+            serverConfig = await confirmServer(message.channel, message.author)
+            await updateRoutine(message.channel, message.author, int(serverConfig.attrib['id']))
+            
         elif "cancel" == messageContent: 
-            log("on_message() - Running the cancel routine")
             # Get the "server" config information for where this listing would go
             serverConfig = await confirmServer(message.channel, message.author)
             await cancelRoutine(message.channel, message.author, int(serverConfig.attrib['id']))
