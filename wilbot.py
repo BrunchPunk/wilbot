@@ -388,6 +388,7 @@ async def flightRoutine(channel, user, listingServerID, listingChannelID):
         log("flightRoutine() - Creating the flight object")
         end_time = datetime.utcnow() + duration
         newFlight = Flight(user.id, playerName, islandName, end_time, dodoCode, extra)
+        newFlight.setDuration(duration)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this.")
@@ -817,6 +818,7 @@ async def updateRoutine(channel, user, serverID):
                                 
                             end_time = datetime.utcnow() + duration
                             user_flight.end_time = end_time
+                            user_flight.setDuration(duration)
                             
                             # Check if the user wants to update something else
                             editingAnswered = False

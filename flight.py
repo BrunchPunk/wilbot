@@ -22,6 +22,7 @@ class Flight:
         self.code = code
         self.extra = extra
         self.messageID = None
+        self.duration = None
         
     # Checks if the requested duration for the flight listing has been reached
     # and returns True if it has, False if it hasn't. 
@@ -37,15 +38,45 @@ class Flight:
         
     # Returns the duration of the listing as timedelta object
     def getDuration(self): 
-        return self.end_time - datetime.utcnow()
+        if self.duration is not None: 
+            return self.duration
+        else:
+            return self.end_time - datetime.utcnow()
+        
+    # Set the duration for this listing
+    def setDuration(self, duration): 
+        self.duration = duration
     
     # Use the information in this object to create a string that will be 
     # used in the listing message for this flight
     def generateMessage(self): 
+        durationList = str(self.getDuration()).split(':')
+        hourFlag = False
+        
+        durationString = ""
+        
+        if int(durationList[0]) == 1: 
+            hourFlag = True
+            durationString = durationString + durationList[0] + " hour "
+        elif int(durationList[0]) > 1: 
+            durationString = durationString + durationList[0] + " hours "
+        
+        if int(durationList[1]) == 1: 
+            if hourFlag: 
+                durationString = durationString + "and " + durationList[1] + " minute "
+            else: 
+                durationString = durationString + durationList[1] + " minute "
+        elif int(durationList[1]) > 1: 
+            if hourFlag: 
+                durationString = durationString + "and " + durationList[1] + " minutes "
+            else: 
+                durationString = durationString + durationList[1] + " minutes "
+        
+        
         returnMessage =  "Flights are now available to " + self.island + "!\n"
         returnMessage += "Host: " + self.playerName + " (<@" + str(self.userID) + ">)\n"
         returnMessage += "Dodo Code™: " + self.code + "\n"
-        returnMessage += "This flight will be available for " + str(self.getDuration()) + " from time of posting\n"
+        returnMessage += "This flight will be available for " + durationString + "from time of posting\n"
 
         
         if self.extra.lower() != "none": 
