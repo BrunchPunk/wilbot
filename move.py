@@ -47,6 +47,7 @@ class Move:
         self.end_time = end_time
         self.extra = extra
         self.messageID = None
+        self.duration = None
         
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
@@ -63,13 +64,47 @@ class Move:
         else: 
             return False
     
+    # Returns the duration of the listing as timedelta object
+    def getDuration(self): 
+        if self.duration is not None: 
+            return self.duration
+        else:
+            return self.end_time - datetime.utcnow()
+        
+    # Set the duration for this listing
+    def setDuration(self, duration): 
+        self.duration = duration
+        
     # Use the information in this object to create a string that will be 
     # used in the listing message for this move
     def generateMessage(self): 
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
         
-        returnMessage = self.villager + " is moving out of " + self.playerName + "'s island. \n" 
+        durationList = str(self.getDuration()).split(':')
+        hourFlag = False
+        
+        durationString = ""
+        
+        if int(durationList[0]) == 1: 
+            hourFlag = True
+            durationString = durationString + durationList[0] + " hour "
+        elif int(durationList[0]) > 1: 
+            durationString = durationString + durationList[0] + " hours "
+        
+        if int(durationList[1]) == 1: 
+            if hourFlag: 
+                durationString = durationString + "and " + durationList[1] + " minute "
+            else: 
+                durationString = durationString + durationList[1] + " minute "
+        elif int(durationList[1]) > 1: 
+            if hourFlag: 
+                durationString = durationString + "and " + durationList[1] + " minutes "
+            else: 
+                durationString = durationString + durationList[1] + " minutes "
+        
+        returnMessage = "__**" + self.villager + "**__ is moving out of " + self.playerName + "'s island. \n" 
+        returnMessage = returnMessage + "They'll be available for " + durationString + "from time of posting. \n"
         returnMessage = returnMessage + "Send <@" + str(self.userID) + "> a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 

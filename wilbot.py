@@ -568,6 +568,7 @@ async def moveRoutine(channel, user, listingServerID, listingChannelID):
         
         # Create the move object
         newMove = Move(user.id, playerName, villagerName, end_time, extra)
+        newMove.setDuration(duration)
         
         # Confirm that the message looks good to the user before posting
         await channel.send("That's everything! With the information provided your listing will look like this: " )
@@ -1001,6 +1002,7 @@ async def updateRoutine(channel, user, serverID):
                                 
                             end_time = datetime.utcnow() + duration
                             user_move.end_time = end_time
+                            user_move.duration = duration
                             
                             # Check if the user wants to update something else
                             editingAnswered = False
