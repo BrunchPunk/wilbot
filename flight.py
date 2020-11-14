@@ -50,33 +50,35 @@ class Flight:
     # Use the information in this object to create a string that will be 
     # used in the listing message for this flight
     def generateMessage(self): 
-        durationList = str(self.getDuration()).split(':')
-        hourFlag = False
-        
         durationString = ""
         
-        if int(durationList[0]) == 1: 
-            hourFlag = True
-            durationString = durationString + durationList[0] + " hour "
-        elif int(durationList[0]) > 1: 
-            durationString = durationString + durationList[0] + " hours "
-        
-        if int(durationList[1]) == 1: 
-            if hourFlag: 
-                durationString = durationString + "and " + durationList[1] + " minute "
-            else: 
-                durationString = durationString + durationList[1] + " minute "
-        elif int(durationList[1]) > 1: 
-            if hourFlag: 
-                durationString = durationString + "and " + durationList[1] + " minutes "
-            else: 
-                durationString = durationString + durationList[1] + " minutes "
-        
+        if self.getDuration() > timedelta(minutes=0): 
+            durationList = str(self.getDuration()).split(':')
+            hourFlag = False
+            
+            if int(durationList[0]) == 1: 
+                hourFlag = True
+                durationString = durationString + durationList[0] + " hour "
+            elif int(durationList[0]) > 1: 
+                durationString = durationString + durationList[0] + " hours "
+            
+            if int(durationList[1]) == 1: 
+                if hourFlag: 
+                    durationString = durationString + "and " + durationList[1] + " minute "
+                else: 
+                    durationString = durationString + durationList[1] + " minute "
+            elif int(durationList[1]) > 1: 
+                if hourFlag: 
+                    durationString = durationString + "and " + durationList[1] + " minutes "
+                else: 
+                    durationString = durationString + durationList[1] + " minutes "
+        else: 
+            durationString = "0 hours "
         
         returnMessage =  "Flights are now available to " + self.island + "!\n"
         returnMessage += "Host: " + self.playerName + " (<@" + str(self.userID) + ">)\n"
         returnMessage += "Dodo Code™: " + self.code + "\n"
-        returnMessage += "This flight will be available for " + durationString + "from time of posting\n"
+        returnMessage += "This flight will be available for " + durationString + "from time of posting. \n"
 
         
         if self.extra.lower() != "none": 

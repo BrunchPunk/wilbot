@@ -142,9 +142,6 @@ async def confirmServer(channel, user):
         for serverConfig in configXML.getroot(): 
             log("Checking if they're a member of: " + str(serverConfig.attrib['name']))
             guild = client.get_guild(int(serverConfig.attrib['id']))
-            log("DEBUG - guild is: " + str(guild))
-            for member in guild.members: 
-                log("DEBUG - member is: " + str(member))
             if (guild is not None) and (user in guild.members): 
                 log("User is a member. Adding to list.")
                 usersServers.append(serverConfig)
@@ -214,7 +211,7 @@ async def cleanupThreadFunction():
             
     for move_row in MoveDB.selectAll(): 
         if datetime.utcnow() > move_row[MoveDB.END_TIME_COL]: 
-            log("Attempting to delete a move row: " + str(flight_row))
+            log("Attempting to delete a move row: " + str(move_row))
             await deleteMessage(move_row[MoveDB.MESSAGE_ID_COL])
             
     # Clean out the contents of the help_throttle list

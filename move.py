@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime
+from datetime import timedelta
 
 # Class representing a moving villager listing that a user requested. It's created
 # when the listing is successfully created and persists until its timer expires 
@@ -81,27 +82,30 @@ class Move:
         if not Move.villagerImageMap: 
             Move.initVillagerImageMap()
         
-        durationList = str(self.getDuration()).split(':')
-        hourFlag = False
-        
         durationString = ""
         
-        if int(durationList[0]) == 1: 
-            hourFlag = True
-            durationString = durationString + durationList[0] + " hour "
-        elif int(durationList[0]) > 1: 
-            durationString = durationString + durationList[0] + " hours "
-        
-        if int(durationList[1]) == 1: 
-            if hourFlag: 
-                durationString = durationString + "and " + durationList[1] + " minute "
-            else: 
-                durationString = durationString + durationList[1] + " minute "
-        elif int(durationList[1]) > 1: 
-            if hourFlag: 
-                durationString = durationString + "and " + durationList[1] + " minutes "
-            else: 
-                durationString = durationString + durationList[1] + " minutes "
+        if self.getDuration() > timedelta(minutes=0): 
+            durationList = str(self.getDuration()).split(':')
+            hourFlag = False
+            
+            if int(durationList[0]) == 1: 
+                hourFlag = True
+                durationString = durationString + durationList[0] + " hour "
+            elif int(durationList[0]) > 1: 
+                durationString = durationString + durationList[0] + " hours "
+            
+            if int(durationList[1]) == 1: 
+                if hourFlag: 
+                    durationString = durationString + "and " + durationList[1] + " minute "
+                else: 
+                    durationString = durationString + durationList[1] + " minute "
+            elif int(durationList[1]) > 1: 
+                if hourFlag: 
+                    durationString = durationString + "and " + durationList[1] + " minutes "
+                else: 
+                    durationString = durationString + durationList[1] + " minutes "
+        else: 
+            durationString = "0 hours "
         
         returnMessage = "__**" + self.villager + "**__ is moving out of " + self.playerName + "'s island. \n" 
         returnMessage = returnMessage + "They'll be available for " + durationString + "from time of posting. \n"
