@@ -69,8 +69,10 @@ class Move:
     def getDuration(self): 
         if self.duration is not None: 
             return self.duration
-        else:
+        elif datetime.utcnow() < self.end_time:
             return self.end_time - datetime.utcnow()
+        else: 
+            return timedelta(0)
         
     # Set the duration for this listing
     def setDuration(self, duration): 
@@ -84,31 +86,68 @@ class Move:
         
         durationString = ""
         
-        if self.getDuration() > timedelta(minutes=0): 
-            durationList = str(self.getDuration()).split(':')
-            hourFlag = False
-            
-            if int(durationList[0]) == 1: 
-                hourFlag = True
-                durationString = durationString + durationList[0] + " hour "
-            elif int(durationList[0]) > 1: 
-                durationString = durationString + durationList[0] + " hours "
-            
-            if int(durationList[1]) == 1: 
-                if hourFlag: 
-                    durationString = durationString + "and " + durationList[1] + " minute "
-                else: 
-                    durationString = durationString + durationList[1] + " minute "
-            elif int(durationList[1]) > 1: 
-                if hourFlag: 
-                    durationString = durationString + "and " + durationList[1] + " minutes "
-                else: 
-                    durationString = durationString + durationList[1] + " minutes "
-        else: 
-            durationString = "0 hours "
+        currentDuration = self.getDuration()
+        days = currentDuration.days
+        seconds = currentDuration.seconds
         
+        # calculate hours and minutes from seconds
+        hours = seconds//60//60
+        minutes = (seconds - (hours * 3600))//60
+        
+        dayString = ""
+        hourString = ""
+        minuteString = "" 
+        
+        dayFlag = False
+        hourFlag = False
+        minuteFlag = False
+        
+        # Determine which time fields we have and build their strings
+        if days > 0: 
+            dayFlag = True
+            
+            if days == 1: 
+                dayString = str(days) +  " day" 
+            else: 
+                dayString = str(days) + " days"
+        
+        if hours > 0: 
+            hourFlag = True
+            
+            if hours == 1: 
+                hourString = str(hours) +  " hour" 
+            else: 
+                hourString = str(hours) + " hours"
+        
+        if minutes > 0: 
+            minuteFlag = True
+            
+            if minutes == 1: 
+                minuteString = str(minutes) +  " minute" 
+            else: 
+                minuteString = str(minutes) + " minutes"
+        
+        # Build the duration string based on what time fields we have
+        if dayFlag and hourFlag and minuteFlag: 
+            durationString = dayString + ", " + hourString + " and " + minuteString
+        elif dayFlag and hourFlag: 
+            durationString = dayString + " and " + hourString
+        elif dayFlag and minuteFlag: 
+            durationString = dayString + " and " + minuteString
+        elif hourFlag and minuteFlag: 
+            durationString = hourString + " and " + minuteString
+        elif dayFlag: 
+            durationString = dayString
+        elif hourFlag: 
+            durationString = hourString
+        elif minuteFlag: 
+            durationString = minuteString
+        else: 
+            durationString = "0 hours"
+        
+        # Build the message
         returnMessage = "__**" + self.villager + "**__ is moving out of " + self.playerName + "'s island. \n" 
-        returnMessage = returnMessage + "They'll be available for " + durationString + "from time of posting. \n"
+        returnMessage = returnMessage + "They'll be available for " + durationString + " from time of posting. \n"
         returnMessage = returnMessage + "Send <@" + str(self.userID) + "> a PM if you're interested in having " + self.villager + " move into your town. \n"
         
         if self.extra.lower() != "none": 
