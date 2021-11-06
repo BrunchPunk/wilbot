@@ -7,6 +7,8 @@ import pickle
 import sqlite3
 import os
 import xml.etree.ElementTree as ET
+
+from discord.errors import NotFound
 from flight import *
 from move import *
 from userDB import * 
