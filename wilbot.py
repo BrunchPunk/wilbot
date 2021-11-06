@@ -374,11 +374,11 @@ async def flightRoutine(channel, user, listingServerID, listingChannelID):
             
         try: 
             log("flightRoutine() - Waiting for user to give extra information")
-            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=600.0)
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("flightRoutine() - User timed out providing extra information")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 60 seconds when prompted. Send me a message saying 'Flight' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 10 minutes when prompted. Send me a message saying 'Flight' if you want to try again.")
             return
         
         # Create the flight object
@@ -556,11 +556,11 @@ async def moveRoutine(channel, user, listingServerID, listingChannelID):
             
         try: 
             log("moveRoutine() - Waiting for user to give an extra")
-            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=600.0)
             extra = str(userAnswer.content)
         except asyncio.TimeoutError: 
             log("moveRoutine() - User timed out providing extra")
-            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 60 seconds when prompted. Send me a message saying 'Move' if you want to try again.")
+            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 10 minutes when prompted. Send me a message saying 'Move' if you want to try again.")
             return
         
         # Create the move object
@@ -847,7 +847,7 @@ async def updateRoutine(channel, user, serverID):
                         await channel.send("What would you like to change the extra information in the listing to? If you don't have anything to add, just reply with 'None'")
                         try: 
                             log("updateRoutine() - Waiting for user to give extra information")
-                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=600.0)
                             extra = str(userAnswer.content)
                                 
                             user_flight.extra = extra
@@ -872,7 +872,7 @@ async def updateRoutine(channel, user, serverID):
                                 
                         except asyncio.TimeoutError: 
                             log("updateRoutine() - User timed out providing dodoCode")
-                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 10 minutes when prompted. Send me a message saying 'Update' if you want to try again.")
                             return
                         
                     else: 
@@ -1030,7 +1030,7 @@ async def updateRoutine(channel, user, serverID):
                         await channel.send("What would you like to change the extra information in the listing to? If you don't have anything to add, just reply with 'None'")
                         try: 
                             log("updateRoutine() - Waiting for user to give extra information")
-                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=60.0)
+                            userAnswer = await client.wait_for('message', check=inputCheckValidURL, timeout=600.0)
                             extra = str(userAnswer.content)
                                 
                             user_move.extra = extra
@@ -1055,7 +1055,7 @@ async def updateRoutine(channel, user, serverID):
                                 
                         except asyncio.TimeoutError: 
                             log("updateRoutine() - User timed out providing dodoCode")
-                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 30 seconds when prompted. Send me a message saying 'Update' if you want to try again.")
+                            await channel.send("Wuh-oh! I didn't catch that. Make sure to answer within 10 minutes when prompted. Send me a message saying 'Update' if you want to try again.")
                             return
                         
                     else: 
