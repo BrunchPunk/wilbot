@@ -1,4 +1,5 @@
 import sqlite3
+import os
 
 # Class encapuslating all the functionality needed to use the 
 # "user" table in the Wilbot Database. The class's methods and 
@@ -23,7 +24,8 @@ class UserDB:
     update_sql = """UPDATE user SET game_name=?, island_name=?, dream_code=? WHERE user_id=?;"""
     
     def initialize():
-        db_conn = sqlite3.connect('wilbot.db')
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        db_conn = sqlite3.connect(execDir + '/wilbot.db')
         db_cursor = db_conn.cursor()
         
         db_cursor.execute(UserDB.create_sql)
@@ -32,7 +34,8 @@ class UserDB:
         db_conn.close()
     
     def insert(user_id, game_name, island_name): 
-        db_conn = sqlite3.connect('wilbot.db')
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        db_conn = sqlite3.connect(execDir + '/wilbot.db')
         db_cursor = db_conn.cursor()
         
         db_cursor.execute(UserDB.insert_sql, (user_id, game_name, island_name))
@@ -41,7 +44,8 @@ class UserDB:
         db_conn.close()
         
     def delete(user_id): 
-        db_conn = sqlite3.connect('wilbot.db')
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        db_conn = sqlite3.connect(execDir + '/wilbot.db')
         db_cursor = db_conn.cursor()
         
         db_cursor.execute(UserDB.delete_sql, (user_id))
@@ -50,7 +54,8 @@ class UserDB:
         db_conn.close()
         
     def update(user_id, game_name, island_name, dream_code): 
-        db_conn = sqlite3.connect('wilbot.db')
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        db_conn = sqlite3.connect(execDir + '/wilbot.db')
         db_cursor = db_conn.cursor()
         
         db_cursor.execute(UserDB.update_sql, (game_name, island_name, dream_code, user_id))

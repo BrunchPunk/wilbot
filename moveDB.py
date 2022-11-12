@@ -1,4 +1,5 @@
 import sqlite3
+import os
 from move import * 
 
 # Class encapuslating all the functionality needed to use the 
@@ -18,7 +19,7 @@ from move import *
 # end_time: (TIMESTAMP) The date and time when the listing should be automatically removed
 # villager: (TEXT) The name of the villager who is moving in this listing
 # extra: (TEXT) Any extra information the user provided about this listing
-
+    
 class MoveDB: 
     # Constants defining the column position for each value
     USER_ID_COL = 0
@@ -39,8 +40,10 @@ class MoveDB:
     selectAll_sql = """SELECT * FROM move;"""
     
     def initialize():
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.create_sql)
@@ -50,8 +53,9 @@ class MoveDB:
             db_conn.close()
     
     def insert(user_id, server_id, channel_id, message_id, player_name, end_time, villager, extra): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.insert_sql, (user_id, server_id, channel_id, message_id, player_name, end_time, villager, extra))
@@ -61,8 +65,9 @@ class MoveDB:
             db_conn.close()
         
     def delete(user_id, server_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.delete_sql, (user_id, server_id))
@@ -72,8 +77,9 @@ class MoveDB:
             db_conn.close()
         
     def update(user_id, server_id, message_id, end_time, dodo_code, extra): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.update_sql, (message_id, end_time, dodo_code, extra, user_id, server_id))
@@ -83,8 +89,9 @@ class MoveDB:
             db_conn.close()
         
     def select_user_server(user_id, server_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.select_user_server_sql, (user_id, server_id))
@@ -96,8 +103,9 @@ class MoveDB:
             db_conn.close()
             
     def select_message(message_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.select_message_sql, (message_id,))
@@ -109,8 +117,9 @@ class MoveDB:
             db_conn.close()
             
     def selectAll(): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(MoveDB.selectAll_sql)

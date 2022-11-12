@@ -205,7 +205,7 @@ async def confirmServer(channel, user):
 @tasks.loop(seconds=60.0)
 async def cleanupThreadFunction(): 
     await client.wait_until_ready()
-    
+
     for flight_row in FlightDB.selectAll(): 
         if datetime.utcnow() > flight_row[FlightDB.END_TIME_COL]: 
             log("Attempting to delete a flight row: " + str(flight_row))
@@ -1330,7 +1330,8 @@ async def invalidInputRoutine(channel):
 # Process the event raised when the bot has started up fully
 @client.event
 async def on_ready():
-    #await client.change_presence(activity=discord.Activity(name='the skies', type=discord.ActivityType.watching))
+    # Start the cleanup thread 
+    cleanupThreadFunction.start()
     
     log("Wilbot is online!")
 
@@ -1459,20 +1460,21 @@ async def on_message(message):
                 help_throttle_lock.release()
             
 
-# Start the Cleanup Thread
-cleanupThreadFunction.start()
+# Get the directory the script is in as the botToken.txt and wilbot_config.xml files
+# are expected to be in the same directory with it. 
+execDir = os.path.dirname(os.path.realpath(__file__))
 
 # Retrieve wilbot's Bot Token from the botToken.txt file
-tokenFile = open('botToken.txt')
+tokenFile = open(execDir + '/botToken.txt')
 token = tokenFile.readline()
 tokenFile.close()
 
 # Load the configuration xml file
-configXML = ET.parse('wilbot_config.xml')
+configXML = ET.parse(execDir + '/wilbot_config.xml')
 
 # Open or initialize the database file
 try: 
-    if os.path.isfile('wilbot.db'): 
+    if os.path.isfile(execDir + '/wilbot.db'): 
         log("Database already exists")
         
     else: 

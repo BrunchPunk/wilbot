@@ -1,4 +1,5 @@
 import sqlite3
+import os
 from flight import * 
 
 # Class encapuslating all the functionality needed to use the 
@@ -49,10 +50,13 @@ class FlightDB:
     select_user_server_sql = """SELECT * FROM flight WHERE user_id=? AND server_id=?;"""
     select_message_sql = """SELECT * FROM flight WHERE message_id=?;"""
     selectAll_sql = """SELECT * FROM flight;"""
-    
+        
     def initialize():
+        execDir = os.path.dirname(os.path.realpath(__file__))
+        print("1. execDir is: " + execDir)
+        
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.create_sql)
@@ -62,8 +66,9 @@ class FlightDB:
             db_conn.close()
     
     def insert(user_id, server_id, channel_id, message_id, player_name, island_name, end_time, dodo_code, extra): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.insert_sql, (user_id, server_id, channel_id, message_id, player_name, island_name, end_time, dodo_code, extra))
@@ -73,8 +78,9 @@ class FlightDB:
             db_conn.close()
         
     def delete(user_id, server_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.delete_sql, (user_id, server_id))
@@ -84,8 +90,9 @@ class FlightDB:
             db_conn.close()
         
     def update(user_id, server_id, message_id, end_time, dodo_code, extra): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.update_sql, (message_id, end_time, dodo_code, extra, user_id, server_id))
@@ -95,8 +102,9 @@ class FlightDB:
             db_conn.close()
 
     def select_user_server(user_id, server_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.select_user_server_sql, (user_id, server_id))
@@ -108,8 +116,9 @@ class FlightDB:
             db_conn.close()
             
     def select_message(message_id): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.select_message_sql, (message_id,))
@@ -121,8 +130,9 @@ class FlightDB:
             db_conn.close()
         
     def selectAll(): 
+        execDir = os.path.dirname(os.path.realpath(__file__))
         try: 
-            db_conn = sqlite3.connect('wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            db_conn = sqlite3.connect(execDir + '/wilbot.db', detect_types=sqlite3.PARSE_DECLTYPES)
             db_cursor = db_conn.cursor()
             
             db_cursor.execute(FlightDB.selectAll_sql)
